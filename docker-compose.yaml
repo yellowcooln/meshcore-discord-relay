@@ -1,0 +1,10 @@
+services:
+  meshcore-discord-relay:
+    build: .
+    env_file:
+      - .env
+    environment:
+      CHANNELS_FILE: /data/channels.json
+    volumes:
+      - ./channels.json:/data/channels.json:ro
+    restart: unless-stopped

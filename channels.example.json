@@ -1,0 +1,15 @@
+{
+  "default_channel_id": "123456789012345678",
+  "channels": [
+    {
+      "name": "public",
+      "secret": "8b3387e9c5cdea6ac9e5edbaa115cd72",
+      "discord_channel_id": "123456789012345678"
+    },
+    {
+      "name": "private-alpha",
+      "secret": "ff2b7d74e8d20f71505bda9ea8d59a1c",
+      "discord_channel_id": "234567890123456789"
+    }
+  ]
+}
