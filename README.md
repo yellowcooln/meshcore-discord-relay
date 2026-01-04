@@ -2,27 +2,6 @@
 
 Relays MeshCore GroupText chat messages from MQTT into Discord channels. It mirrors the MQTT config used by `mesh-live-map` and uses `@michaelhart/meshcore-decoder` to decrypt GroupText messages with channel secrets.
 
-## Setup
-
-1) Install dependencies:
-
-```bash
-npm install
-```
-
-2) Copy the sample configs and edit them:
-
-```bash
-cp .env.example .env
-cp channels.example.json channels.json
-```
-
-3) Start the relay:
-
-```bash
-npm start
-```
-
 ## Docker
 
 1) Copy configs:
@@ -31,11 +10,18 @@ npm start
 cp .env.example .env
 cp channels.example.json channels.json
 ```
+2) Edit `.env` and `channels.json` to fit your needs.
 
-2) Build and run:
+3) Build and run:
 
 ```bash
 docker compose up -d --build
+```
+
+4) Check logs:
+
+```bash
+docker compose logs -f meshcore-discord-relay
 ```
 
 ## Configuration
@@ -65,4 +51,3 @@ Each entry provides a MeshCore channel secret (hex) and the Discord channel ID t
 
 - Only GroupText payloads are relayed (MeshCore text chat). If a matching channel secret is not provided, messages are skipped.
 - Dedupe is handled by message hash for 45 seconds by default (`RELAY_DEDUPE_SECONDS`).
-- MQTT defaults match `mesh-live-map` so you can reuse the same `.env` values for host, TLS, and topic.
