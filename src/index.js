@@ -92,20 +92,12 @@ setInterval(() => {
 }, Math.max(10000, dedupeWindowMs));
 
 function formatRelayMessage(channelInfo, payload, packet) {
-  const channelLabel = channelInfo?.name
-    ? `#${channelInfo.name}`
-    : channelInfo?.channelHash
-      ? `hash ${channelInfo.channelHash}`
-      : 'unknown';
-
   const sender = payload.decrypted?.sender ? `${payload.decrypted.sender}: ` : '';
   const body = (payload.decrypted?.message || '').trim();
   if (!body) {
     return '';
   }
-  const prefix = `[MeshCore ${channelLabel}]`;
-
-  let text = `${prefix} ${sender}${body}`.trim();
+  let text = `${sender}${body}`.trim();
   if (text.length > 1900) {
     text = `${text.slice(0, 1890)}...`;
   }
