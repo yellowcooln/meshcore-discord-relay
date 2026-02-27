@@ -104,10 +104,18 @@ function formatRelayMessage(channelInfo, payload, packet) {
   return text;
 }
 
-function pickChannel(channelHash) {
+function pickChannels(channelHash) {
   const channelInfo = config.channelMap.get(channelHash) || null;
-  const channelId = channelInfo?.discordChannelId || config.discord.defaultChannelId;
-  return { channelId, channelInfo };
+  if (channelInfo?.discordChannelIds?.length) {
+    return {
+      channelIds: channelInfo.discordChannelIds,
+      channelInfo
+    };
+  }
+  return {
+    channelIds: config.discord.defaultChannelId ? [config.discord.defaultChannelId] : [],
+    channelInfo
+  };
 }
 
 async function handlePacket(topic, payload) {
@@ -135,8 +143,8 @@ async function handlePacket(topic, payload) {
   }
 
   const channelHash = String(payloadDecoded.channelHash || '').toLowerCase();
-  const { channelId, channelInfo } = pickChannel(channelHash);
-  if (!channelId) {
+  const { channelIds, channelInfo } = pickChannels(channelHash);
+  if (channelIds.length === 0) {
     log('debug', `No Discord channel for hash ${channelHash || 'unknown'}`);
     return;
   }
@@ -147,21 +155,23 @@ async function handlePacket(topic, payload) {
     return;
   }
 
-  const channel = await getDiscordChannel(channelId);
-  if (!channel) {
-    return;
-  }
-
   const messageText = formatRelayMessage(channelInfo, payloadDecoded, decoded);
   if (!messageText) {
     return;
   }
 
-  try {
-    await channel.send({ content: messageText });
-  } catch (err) {
-    log('warn', `Failed to send Discord message: ${err?.message || err}`);
-  }
+  await Promise.all(channelIds.map(async (channelId) => {
+    const channel = await getDiscordChannel(channelId);
+    if (!channel) {
+      return;
+    }
+
+    try {
+      await channel.send({ content: messageText });
+    } catch (err) {
+      log('warn', `Failed to send Discord message to ${channelId}: ${err?.message || err}`);
+    }
+  }));
 }
 
 function buildMqttClient() {

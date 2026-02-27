@@ -68,21 +68,42 @@ function normalizeHex(value) {
   return trimmed;
 }
 
+function normalizeDiscordChannelIds(entry) {
+  const ids = [];
+
+  const fromArray = entry.discord_channel_ids || entry.discordChannelIds;
+  if (Array.isArray(fromArray)) {
+    for (const item of fromArray) {
+      const id = String(item || '').trim();
+      if (id) {
+        ids.push(id);
+      }
+    }
+  }
+
+  const singleId = String(entry.discord_channel_id || entry.discordChannelId || '').trim();
+  if (singleId) {
+    ids.push(singleId);
+  }
+
+  return [...new Set(ids)];
+}
+
 export function loadConfig() {
   const channelsFile = env('CHANNELS_FILE', 'channels.json');
   const channelsFileData = loadChannelsFile(channelsFile);
   const defaultChannelId = env('DISCORD_DEFAULT_CHANNEL_ID', channelsFileData.defaultChannelId || '').trim();
 
-  const channelSecrets = [];
+  const channelSecrets = new Set();
   const channelMap = new Map();
 
   for (const entry of channelsFileData.channels) {
     if (!entry || typeof entry !== 'object') {
       continue;
     }
-    const discordChannelId = String(entry.discord_channel_id || entry.discordChannelId || '').trim();
-    if (!discordChannelId) {
-      console.warn('[config] Channel entry missing discord_channel_id, skipping.');
+    const discordChannelIds = normalizeDiscordChannelIds(entry);
+    if (discordChannelIds.length === 0) {
+      console.warn('[config] Channel entry missing discord_channel_id(s), skipping.');
       continue;
     }
 
@@ -93,25 +114,36 @@ export function loadConfig() {
     let channelHash = '';
     if (secret) {
       channelHash = ChannelCrypto.calculateChannelHash(secret).toLowerCase();
-      channelSecrets.push(secret);
+      channelSecrets.add(secret);
     } else if (hashOverride) {
       channelHash = hashOverride;
     }
 
     if (!channelHash) {
-      console.warn(`[config] Channel entry missing secret/hash for ${discordChannelId}, skipping.`);
+      console.warn(`[config] Channel entry missing secret/hash for ${discordChannelIds.join(', ')}, skipping.`);
       continue;
     }
 
-    if (channelMap.has(channelHash)) {
-      console.warn(`[config] Duplicate channel hash ${channelHash} detected, keeping first mapping.`);
+    const existing = channelMap.get(channelHash);
+    if (existing) {
+      const mergedChannelIds = [...new Set([...existing.discordChannelIds, ...discordChannelIds])];
+      if (mergedChannelIds.length !== existing.discordChannelIds.length) {
+        console.warn(`[config] Duplicate channel hash ${channelHash} detected, merging Discord channel mappings.`);
+      }
+      existing.discordChannelIds = mergedChannelIds;
+      if (!existing.name && name) {
+        existing.name = name;
+      }
+      if (!existing.secret && secret) {
+        existing.secret = secret;
+      }
       continue;
     }
 
     channelMap.set(channelHash, {
       name,
       channelHash,
-      discordChannelId,
+      discordChannelIds,
       secret: secret || ''
     });
   }
@@ -154,7 +186,7 @@ export function loadConfig() {
     mqtt,
     relay,
     discord,
-    channelSecrets,
+    channelSecrets: [...channelSecrets],
     channelMap
   };
 }
