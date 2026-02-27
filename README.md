@@ -29,6 +29,7 @@ docker compose logs -f meshcore-discord-relay
 - `DISCORD_TOKEN` (required): Bot token.
 - `DISCORD_DEFAULT_CHANNEL_ID`: Fallback Discord channel when a MeshCore channel hash is not mapped.
 - `CHANNELS_FILE`: JSON mapping of MeshCore channel secrets to Discord channel IDs (default: `channels.json`).
+- `MQTT_OBSERVER_ALLOWLIST`: Optional comma-separated observer names. When set, only packets seen by these observers are relayed.
 
 ### channels.json
 
@@ -56,3 +57,6 @@ Each entry provides a MeshCore channel secret (hex) and one or more Discord chan
 
 - Only GroupText payloads are relayed (MeshCore text chat). If a matching channel secret is not provided, messages are skipped.
 - Dedupe is handled by message hash for 45 seconds by default (`RELAY_DEDUPE_SECONDS`).
+- Observer filtering reads names from MQTT topic metadata and JSON payload fields like `origin`/`observer`.
+- Observer allowlist matching is case-insensitive and normalization-based. Example: `MQTT_OBSERVER_ALLOWLIST=DeputyDawg,YC-Observer` will match `DeputyDawg - Observer`.
+- If Discord posting fails, logs show `Missing Permissions` with the channel ID. Grant `View Channel`, `Send Messages`, and `Read Message History` to the bot.

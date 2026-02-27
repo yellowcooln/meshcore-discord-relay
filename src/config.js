@@ -24,6 +24,17 @@ function envInt(name, fallback) {
   return Number.isNaN(parsed) ? fallback : parsed;
 }
 
+function envList(name, fallback = []) {
+  const raw = env(name, '').trim();
+  if (!raw) {
+    return fallback;
+  }
+  return raw
+    .split(',')
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
 function resolvePath(filePath) {
   if (!filePath) {
     return '';
@@ -174,7 +185,8 @@ export function loadConfig() {
 
   const relay = {
     dedupeSeconds: envInt('RELAY_DEDUPE_SECONDS', 45),
-    logLevel: env('LOG_LEVEL', 'info').trim().toLowerCase()
+    logLevel: env('LOG_LEVEL', 'info').trim().toLowerCase(),
+    observerAllowlist: [...new Set(envList('MQTT_OBSERVER_ALLOWLIST').map((name) => name.toLowerCase()))]
   };
 
   const discord = {

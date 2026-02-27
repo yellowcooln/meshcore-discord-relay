@@ -72,6 +72,135 @@ async function getDiscordChannel(channelId) {
 
 const dedupeWindowMs = Math.max(5, config.relay.dedupeSeconds) * 1000;
 const dedupeCache = new Map();
+const observerAllowlist = new Set(config.relay.observerAllowlist || []);
+const observerAllowlistCompact = [...observerAllowlist]
+  .map((name) => name.replace(/[^a-z0-9]+/g, ''))
+  .filter(Boolean);
+
+function normalizeObserverName(value) {
+  if (!value || typeof value !== 'string') {
+    return '';
+  }
+  const trimmed = value.trim().replace(/^['"]+|['"]+$/g, '').toLowerCase();
+  return trimmed;
+}
+
+function compactObserverName(value) {
+  return normalizeObserverName(value).replace(/[^a-z0-9]+/g, '');
+}
+
+function isObserverAllowed(observer) {
+  const normalized = normalizeObserverName(observer);
+  if (!normalized) {
+    return false;
+  }
+  if (observerAllowlist.has(normalized)) {
+    return true;
+  }
+
+  const compact = compactObserverName(normalized);
+  if (!compact) {
+    return false;
+  }
+
+  return observerAllowlistCompact.some((allowed) => compact.includes(allowed) || allowed.includes(compact));
+}
+
+function extractObserversFromTopic(topic) {
+  if (!topic || typeof topic !== 'string') {
+    return [];
+  }
+
+  const decodedTopic = topic
+    .split('/')
+    .map((segment) => {
+      try {
+        return decodeURIComponent(segment);
+      } catch {
+        return segment;
+      }
+    });
+
+  const observers = new Set();
+
+  for (let i = 0; i < decodedTopic.length; i += 1) {
+    const segment = decodedTopic[i];
+    const lower = segment.toLowerCase();
+
+    if ((lower === 'status' || lower === 'observer' || lower === 'observers') && i + 1 < decodedTopic.length) {
+      const next = normalizeObserverName(decodedTopic[i + 1]);
+      if (next) {
+        observers.add(next);
+      }
+    }
+
+    const kvMatch = segment.match(/^(status|observer|observers)\s*[:=]\s*(.+)$/i);
+    if (kvMatch) {
+      const value = normalizeObserverName(kvMatch[2]);
+      if (value) {
+        observers.add(value);
+      }
+    }
+  }
+
+  const joined = decodedTopic.join('/');
+  const regex = /(?:^|\/)(?:status|observer|observers)(?:\/|:|=)([^/]+)/gi;
+  let match;
+  while ((match = regex.exec(joined)) !== null) {
+    const value = normalizeObserverName(match[1]);
+    if (value) {
+      observers.add(value);
+    }
+  }
+
+  return [...observers];
+}
+
+function extractObserversFromPayload(payloadBuffer) {
+  if (!payloadBuffer || payloadBuffer.length === 0) {
+    return [];
+  }
+
+  const text = payloadBuffer.toString('utf8').trim();
+  if (!text || !text.startsWith('{') || !text.endsWith('}')) {
+    return [];
+  }
+
+  let obj;
+  try {
+    obj = JSON.parse(text);
+  } catch {
+    return [];
+  }
+
+  const observers = new Set();
+  const queue = [obj];
+  const observerKeys = new Set(['origin', 'observer', 'observer_name', 'observerName', 'name']);
+  let visited = 0;
+
+  while (queue.length > 0 && visited < 100) {
+    const current = queue.shift();
+    visited += 1;
+    if (!current || typeof current !== 'object') {
+      continue;
+    }
+
+    for (const [key, value] of Object.entries(current)) {
+      if (observerKeys.has(key) && typeof value === 'string') {
+        const normalized = normalizeObserverName(value);
+        if (normalized) {
+          observers.add(normalized);
+        }
+      }
+
+      if (value && typeof value === 'object') {
+        queue.push(value);
+      }
+    }
+  }
+
+  return [...observers];
+}
 
 function shouldRelayMessage(key, now) {
   const lastSeen = dedupeCache.get(key);
@@ -119,6 +248,18 @@ function pickChannels(channelHash) {
 }
 
 async function handlePacket(topic, payload) {
+  if (observerAllowlist.size > 0) {
+    const observers = [
+      ...extractObserversFromTopic(topic),
+      ...extractObserversFromPayload(payload)
+    ];
+    const allowed = observers.some((observer) => isObserverAllowed(observer));
+    if (!allowed) {
+      log('debug', `Skipping packet from observer(s) ${observers.join(',') || 'unknown'} (not in allowlist).`);
+      return;
+    }
+  }
+
   const hex = extractPacketHex(topic, payload);
   if (!hex) {
     return;
@@ -239,6 +380,9 @@ let mqttClient = null;
 
 discordClient.once('ready', () => {
   log('info', `Discord logged in as ${discordClient.user?.tag || 'unknown'}`);
+  if (observerAllowlist.size > 0) {
+    log('info', `Observer filter enabled: ${[...observerAllowlist].join(', ')}`);
+  }
   mqttClient = buildMqttClient();
 });
 
