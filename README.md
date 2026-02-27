@@ -1,6 +1,6 @@
 # MeshCore Discord Relay
 
-Relays MeshCore GroupText chat messages from MQTT into Discord channels. It mirrors the MQTT config used by `mesh-live-map` and uses `@michaelhart/meshcore-decoder` to decrypt GroupText messages with channel secrets.
+Relays MeshCore GroupText chat messages from MQTT into Discord channels. It uses `@michaelhart/meshcore-decoder` to decrypt GroupText messages with channel secrets.
 
 ## Docker
 
@@ -26,10 +26,26 @@ docker compose logs -f meshcore-discord-relay
 
 ## Configuration
 
-- `DISCORD_TOKEN` (required): Bot token.
-- `DISCORD_DEFAULT_CHANNEL_ID`: Fallback Discord channel when a MeshCore channel hash is not mapped.
-- `CHANNELS_FILE`: JSON mapping of MeshCore channel secrets to Discord channel IDs (default: `channels.json`).
-- `MQTT_OBSERVER_ALLOWLIST`: Optional comma-separated observer names. When set, only packets seen by these observers are relayed.
+### .env Breakdown
+
+- `DISCORD_TOKEN` (required): Discord bot token.
+- `DISCORD_DEFAULT_CHANNEL_ID`: Fallback Discord channel if a Mesh channel hash is not mapped in `channels.json`.
+- `MQTT_HOST`: MQTT broker host.
+- `MQTT_PORT`: MQTT broker port.
+- `MQTT_USERNAME`: MQTT username (optional).
+- `MQTT_PASSWORD`: MQTT password (optional).
+- `MQTT_TOPIC`: MQTT topic subscription (for example `meshcore/#` or `meshcore/BOS/#`).
+- `MQTT_TLS`: Set `true` for TLS (`mqtts`/`wss`), else `false`.
+- `MQTT_TLS_INSECURE`: Set `true` to skip TLS cert verification (not recommended outside testing).
+- `MQTT_CA_CERT`: Optional CA certificate path for TLS validation.
+- `MQTT_TRANSPORT`: `tcp` or `websockets`.
+- `MQTT_WS_PATH`: WebSocket path when using `websockets` transport (usually `/mqtt`).
+- `MQTT_CLIENT_ID`: Optional MQTT client ID.
+- `MQTT_QOS`: MQTT QoS level (`0`, `1`, or `2`; default `0`).
+- `CHANNELS_FILE`: Channel routing file path (default `channels.json`).
+- `RELAY_DEDUPE_SECONDS`: Dedupe window in seconds for message hash replay protection.
+- `LOG_LEVEL`: `debug`, `info`, `warn`, or `error`.
+- `MQTT_OBSERVER_ALLOWLIST`: Optional comma-separated observer names; if set, only packets seen by these observers are relayed.
 
 ### channels.json
 
