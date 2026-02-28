@@ -1,7 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import mqtt from 'mqtt';
-import { Client, GatewayIntentBits } from 'discord.js';
+import { Client, EmbedBuilder, GatewayIntentBits } from 'discord.js';
 import { MeshCoreDecoder, PayloadType } from '@michaelhart/meshcore-decoder';
 import dotenv from 'dotenv';
 
@@ -40,7 +40,11 @@ if (!config.discord.token) {
   process.exit(1);
 }
 
-if (!config.discord.defaultChannelId && config.channelMap.size === 0) {
+if (config.discord.routeMode === 'master' && !config.discord.masterChannelId && !config.discord.defaultChannelId) {
+  log('warn', 'DISCORD_ROUTE_MODE=master but no DISCORD_MASTER_CHANNEL_ID or DISCORD_DEFAULT_CHANNEL_ID is configured.');
+}
+
+if (!config.discord.defaultChannelId && config.channelMap.size === 0 && config.discord.routeMode !== 'master') {
   log('warn', 'No default Discord channel and no channel mappings configured.');
 }
 
@@ -76,6 +80,14 @@ const observerAllowlist = new Set(config.relay.observerAllowlist || []);
 const observerAllowlistCompact = [...observerAllowlist]
   .map((name) => name.replace(/[^a-z0-9]+/g, ''))
   .filter(Boolean);
+const relayShowPath = Boolean(config.relay.showPath);
+const relayPathWaitMs = Math.max(0, config.relay.pathWaitMs || 0);
+const relayPathMaxObservers = Math.max(1, config.relay.pathMaxObservers || 8);
+const relayEmbedColor = config.relay.embedColor || 0x1e2938;
+const trackMessageState = relayShowPath || observerAllowlist.size > 0;
+const pathCacheWindowMs = Math.max(dedupeWindowMs, relayPathWaitMs + 5000);
+const messagePathCache = new Map();
+const pendingRelayTimers = new Map();
 
 function normalizeObserverName(value) {
   if (!value || typeof value !== 'string') {
@@ -87,6 +99,115 @@ function normalizeObserverName(value) {
 
 function compactObserverName(value) {
   return normalizeObserverName(value).replace(/[^a-z0-9]+/g, '');
+}
+
+function extractIdPrefix(value) {
+  if (!value || typeof value !== 'string') {
+    return '';
+  }
+  const trimmed = value.trim();
+  if (!/^[0-9a-fA-F]{64}$/.test(trimmed)) {
+    return '';
+  }
+  return trimmed.slice(0, 2).toLowerCase();
+}
+
+function extractObserverPrefix(observer) {
+  const normalized = normalizeObserverName(observer);
+  if (!normalized) {
+    return '';
+  }
+  const match = normalized.match(/(?:^|[^0-9])([0-9]{2})(?=[^0-9]|$)/);
+  return match ? match[1] : '';
+}
+
+function formatObserverHop(observer) {
+  const prefix = extractObserverPrefix(observer);
+  if (prefix) {
+    return prefix;
+  }
+  const normalized = normalizeObserverName(observer)
+    .replace(/\s*-\s*observer\b/g, '')
+    .replace(/\s+/g, '-');
+  return normalized;
+}
+
+function extractTopicObserverPrefix(topic) {
+  if (!topic || typeof topic !== 'string') {
+    return '';
+  }
+  const parts = topic.split('/');
+  for (const part of parts) {
+    const prefix = extractIdPrefix(part);
+    if (prefix) {
+      return prefix;
+    }
+  }
+  return '';
+}
+
+function extractObserverPrefixHints(payloadBuffer) {
+  if (!payloadBuffer || payloadBuffer.length === 0) {
+    return new Map();
+  }
+
+  const text = payloadBuffer.toString('utf8').trim();
+  if (!text || !text.startsWith('{') || !text.endsWith('}')) {
+    return new Map();
+  }
+
+  let obj;
+  try {
+    obj = JSON.parse(text);
+  } catch {
+    return new Map();
+  }
+
+  const hints = new Map();
+  const queue = [obj];
+  let visited = 0;
+
+  while (queue.length > 0 && visited < 120) {
+    const current = queue.shift();
+    visited += 1;
+    if (!current || typeof current !== 'object') {
+      continue;
+    }
+
+    const names = [];
+    const ids = [];
+
+    for (const [key, value] of Object.entries(current)) {
+      if (typeof value === 'string') {
+        if (['origin', 'observer', 'observer_name', 'observerName', 'name'].includes(key)) {
+          const normalized = normalizeObserverName(value);
+          if (normalized) {
+            names.push(normalized);
+          }
+        }
+        if (['origin_id', 'observer_id', 'observerId', 'id'].includes(key)) {
+          const prefix = extractIdPrefix(value);
+          if (prefix) {
+            ids.push(prefix);
+          }
+        }
+      }
+
+      if (value && typeof value === 'object') {
+        queue.push(value);
+      }
+    }
+
+    if (names.length > 0 && ids.length > 0) {
+      for (const name of names) {
+        if (!hints.has(name)) {
+          hints.set(name, ids[0]);
+        }
+      }
+    }
+  }
+
+  return hints;
 }
 
 function isObserverAllowed(observer) {
@@ -202,6 +323,107 @@ function extractObserversFromPayload(payloadBuffer) {
   return [...observers];
 }
 
+function normalizeRoutePath(path) {
+  if (!Array.isArray(path)) {
+    return [];
+  }
+  return path
+    .map((hop) => String(hop || '').trim().toLowerCase())
+    .filter((hop) => /^[0-9a-f]{2}$/.test(hop));
+}
+
+function updateMessagePath(relayKey, observers, now, prefixHints = new Map(), fallbackPrefix = '', routePath = []) {
+  if (!trackMessageState || !relayKey) {
+    return {
+      path: [],
+      allowedSeen: observerAllowlist.size === 0
+    };
+  }
+
+  let state = messagePathCache.get(relayKey);
+  if (!state) {
+    state = {
+      observers: new Map(),
+      lastSeen: now,
+      allowedSeen: observerAllowlist.size === 0,
+      routePath: []
+    };
+    messagePathCache.set(relayKey, state);
+  }
+
+  state.lastSeen = now;
+  const normalizedRoutePath = normalizeRoutePath(routePath);
+  if (normalizedRoutePath.length > state.routePath.length) {
+    state.routePath = normalizedRoutePath;
+  }
+  if (observerAllowlist.size > 0 && observers.some((observer) => isObserverAllowed(observer))) {
+    state.allowedSeen = true;
+  }
+
+  for (const observer of observers) {
+    const normalized = normalizeObserverName(observer);
+    const hintedPrefix = prefixHints.get(normalized);
+    const hop = hintedPrefix || formatObserverHop(observer) || fallbackPrefix;
+    if (!normalized || state.observers.has(normalized)) {
+      continue;
+    }
+    state.observers.set(normalized, hop);
+  }
+
+  return {
+    path: state.routePath.length > 0 ? [...state.routePath] : [...state.observers.values()],
+    allowedSeen: state.allowedSeen
+  };
+}
+
+function getMessagePath(relayKey) {
+  const state = messagePathCache.get(relayKey);
+  if (!state) {
+    return [];
+  }
+  if (Array.isArray(state.routePath) && state.routePath.length > 0) {
+    return [...state.routePath];
+  }
+  return [...state.observers.values()];
+}
+
+function applyPathSuffix(messageText, observers) {
+  if (!relayShowPath || !Array.isArray(observers) || observers.length === 0) {
+    return messageText;
+  }
+
+  const shown = observers.slice(0, relayPathMaxObservers);
+  const hiddenCount = observers.length - shown.length;
+  const formatted = shown.map((hop) => (/^[0-9a-f]{2}$/i.test(hop) ? hop.toUpperCase() : hop));
+  const suffix = `\n[${formatted.join(',')}${hiddenCount > 0 ? `,+${hiddenCount}` : ''}]`;
+
+  if (messageText.length + suffix.length <= 1900) {
+    return `${messageText}${suffix}`;
+  }
+
+  const trimmedLength = Math.max(0, 1900 - suffix.length - 3);
+  return `${messageText.slice(0, trimmedLength)}...${suffix}`;
+}
+
+async function sendToDiscordChannels(channelIds, messageText) {
+  const embed = new EmbedBuilder()
+    .setDescription(messageText)
+    .setColor(relayEmbedColor);
+
+  await Promise.all(channelIds.map(async (channelId) => {
+    const channel = await getDiscordChannel(channelId);
+    if (!channel) {
+      return;
+    }
+
+    try {
+      await channel.send({ embeds: [embed] });
+    } catch (err) {
+      log('warn', `Failed to send Discord message to ${channelId}: ${err?.message || err}`);
+    }
+  }));
+}
+
 function shouldRelayMessage(key, now) {
   const lastSeen = dedupeCache.get(key);
   if (lastSeen && now - lastSeen < dedupeWindowMs) {
@@ -218,15 +440,24 @@ setInterval(() => {
       dedupeCache.delete(key);
     }
   }
+  for (const [key, state] of messagePathCache.entries()) {
+    if (!state || now - state.lastSeen > pathCacheWindowMs) {
+      messagePathCache.delete(key);
+    }
+  }
 }, Math.max(10000, dedupeWindowMs));
 
 function formatRelayMessage(channelInfo, payload, packet) {
-  const sender = payload.decrypted?.sender ? `${payload.decrypted.sender}: ` : '';
+  const senderRaw = String(payload.decrypted?.sender || '').trim();
   const body = (payload.decrypted?.message || '').trim();
   if (!body) {
     return '';
   }
-  let text = `${sender}${body}`.trim();
+  let text = body;
+  if (senderRaw) {
+    const sender = senderRaw.replace(/([*_`~\\])/g, '\\$1');
+    text = `**${sender}**: ${body}`;
+  }
   if (text.length > 1900) {
     text = `${text.slice(0, 1890)}...`;
   }
@@ -234,6 +465,14 @@ function formatRelayMessage(channelInfo, payload, packet) {
 }
 
 function pickChannels(channelHash) {
+  if (config.discord.routeMode === 'master') {
+    const masterChannelId = config.discord.masterChannelId || config.discord.defaultChannelId;
+    return {
+      channelIds: masterChannelId ? [masterChannelId] : [],
+      channelInfo: null
+    };
+  }
+
   const channelInfo = config.channelMap.get(channelHash) || null;
   if (channelInfo?.discordChannelIds?.length) {
     return {
@@ -248,17 +487,14 @@ function pickChannels(channelHash) {
 }
 
 async function handlePacket(topic, payload) {
-  if (observerAllowlist.size > 0) {
-    const observers = [
+  const observers = [
+    ...new Set([
       ...extractObserversFromTopic(topic),
       ...extractObserversFromPayload(payload)
-    ];
-    const allowed = observers.some((observer) => isObserverAllowed(observer));
-    if (!allowed) {
-      log('debug', `Skipping packet from observer(s) ${observers.join(',') || 'unknown'} (not in allowlist).`);
-      return;
-    }
-  }
+    ])
+  ];
+  const prefixHints = extractObserverPrefixHints(payload);
+  const topicPrefix = extractTopicObserverPrefix(topic);
 
   const hex = extractPacketHex(topic, payload);
   if (!hex) {
@@ -292,6 +528,12 @@ async function handlePacket(topic, payload) {
 
   const relayKey = `${decoded.messageHash || payloadDecoded.decrypted.timestamp || 'no-hash'}:${channelHash}`;
   const now = Date.now();
+  const pathState = updateMessagePath(relayKey, observers, now, prefixHints, topicPrefix, decoded.path);
+  if (observerAllowlist.size > 0 && !pathState.allowedSeen) {
+    log('debug', `Holding message ${relayKey} until a whitelisted observer sees it. Seen: ${observers.join(',') || 'unknown'}`);
+    return;
+  }
+
   if (!shouldRelayMessage(relayKey, now)) {
     return;
   }
@@ -301,18 +543,24 @@ async function handlePacket(topic, payload) {
     return;
   }
 
-  await Promise.all(channelIds.map(async (channelId) => {
-    const channel = await getDiscordChannel(channelId);
-    if (!channel) {
+  if (relayShowPath && relayPathWaitMs > 0) {
+    if (pendingRelayTimers.has(relayKey)) {
       return;
     }
+    const timer = setTimeout(() => {
+      pendingRelayTimers.delete(relayKey);
+      const latestPath = getMessagePath(relayKey);
+      const messageWithPath = applyPathSuffix(messageText, latestPath);
+      sendToDiscordChannels(channelIds, messageWithPath).catch((err) => {
+        log('warn', `Failed to send delayed Discord message: ${err?.message || err}`);
+      });
+    }, relayPathWaitMs);
+    pendingRelayTimers.set(relayKey, timer);
+    return;
+  }
 
-    try {
-      await channel.send({ content: messageText });
-    } catch (err) {
-      log('warn', `Failed to send Discord message to ${channelId}: ${err?.message || err}`);
-    }
-  }));
+  const messageWithPath = applyPathSuffix(messageText, pathState.path);
+  await sendToDiscordChannels(channelIds, messageWithPath);
 }
 
 function buildMqttClient() {
@@ -380,8 +628,16 @@ let mqttClient = null;
 
 discordClient.once('ready', () => {
   log('info', `Discord logged in as ${discordClient.user?.tag || 'unknown'}`);
+  if (config.discord.routeMode === 'master') {
+    log('info', `Routing mode: master (${config.discord.masterChannelId || config.discord.defaultChannelId || 'unset'})`);
+  } else {
+    log('info', 'Routing mode: per_channel');
+  }
   if (observerAllowlist.size > 0) {
     log('info', `Observer filter enabled: ${[...observerAllowlist].join(', ')}`);
+  }
+  if (relayShowPath) {
+    log('info', `Message path display enabled (wait ${relayPathWaitMs}ms, max ${relayPathMaxObservers} observers).`);
   }
   mqttClient = buildMqttClient();
 });
@@ -392,6 +648,10 @@ discordClient.on('error', (err) => {
 
 process.on('SIGINT', () => {
   log('info', 'Shutting down...');
+  for (const timer of pendingRelayTimers.values()) {
+    clearTimeout(timer);
+  }
+  pendingRelayTimers.clear();
   if (mqttClient) {
     mqttClient.end(true);
   }
@@ -401,6 +661,10 @@ process.on('SIGINT', () => {
 
 process.on('SIGTERM', () => {
   log('info', 'Shutting down...');
+  for (const timer of pendingRelayTimers.values()) {
+    clearTimeout(timer);
+  }
+  pendingRelayTimers.clear();
   if (mqttClient) {
     mqttClient.end(true);
   }

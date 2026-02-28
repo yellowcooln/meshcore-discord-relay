@@ -35,6 +35,30 @@ function envList(name, fallback = []) {
     .filter(Boolean);
 }
 
+function normalizeRouteMode(value) {
+  const mode = String(value || '').trim().toLowerCase();
+  if (mode === 'master') {
+    return 'master';
+  }
+  return 'per_channel';
+}
+
+function normalizeEmbedColor(value, fallback = 0x1e2938) {
+  const raw = String(value || '')
+    .trim()
+    .replace(/^['"]+|['"]+$/g, '')
+    .toLowerCase();
+  if (!raw) {
+    return fallback;
+  }
+  const normalized = raw.replace(/^#/, '').replace(/^0x/, '');
+  if (!/^[0-9a-f]{6}$/.test(normalized)) {
+    return fallback;
+  }
+  const parsed = Number.parseInt(normalized, 16);
+  return Number.isNaN(parsed) ? fallback : parsed;
+}
+
 function resolvePath(filePath) {
   if (!filePath) {
     return '';
@@ -186,12 +210,18 @@ export function loadConfig() {
   const relay = {
     dedupeSeconds: envInt('RELAY_DEDUPE_SECONDS', 45),
     logLevel: env('LOG_LEVEL', 'info').trim().toLowerCase(),
-    observerAllowlist: [...new Set(envList('MQTT_OBSERVER_ALLOWLIST').map((name) => name.toLowerCase()))]
+    observerAllowlist: [...new Set(envList('MQTT_OBSERVER_ALLOWLIST').map((name) => name.toLowerCase()))],
+    showPath: envBool('RELAY_SHOW_PATH', false),
+    pathWaitMs: Math.max(0, envInt('RELAY_PATH_WAIT_MS', 1200)),
+    pathMaxObservers: Math.max(1, envInt('RELAY_PATH_MAX_OBSERVERS', 8)),
+    embedColor: normalizeEmbedColor(env('RELAY_EMBED_COLOR', '#1e2938'))
   };
 
   const discord = {
     token: env('DISCORD_TOKEN', '').trim(),
-    defaultChannelId
+    defaultChannelId,
+    routeMode: normalizeRouteMode(env('DISCORD_ROUTE_MODE', 'per_channel')),
+    masterChannelId: env('DISCORD_MASTER_CHANNEL_ID', '').trim()
   };
 
   return {
