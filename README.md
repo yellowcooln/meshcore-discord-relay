@@ -3,6 +3,7 @@
 Relays MeshCore GroupText chat messages from MQTT into Discord channels. It uses `@michaelhart/meshcore-decoder` to decrypt GroupText messages with channel secrets.
 
 See [CHANGELOG.md](./CHANGELOG.md) for release history.
+See [howto.md](./howto.md) for end-to-end Linux deployment steps.
 
 ## Docker
 
