@@ -35,30 +35,56 @@ function log(level, message) {
   }
 }
 
-if (!config.discord.token) {
+const relayDeliveryMode = config.discord.deliveryMode || 'bot';
+const isWebhookDelivery = relayDeliveryMode === 'webhook';
+const isBotDelivery = !isWebhookDelivery;
+
+if (isBotDelivery && !config.discord.token) {
   log('error', 'DISCORD_TOKEN is required.');
   process.exit(1);
 }
 
-if (config.discord.routeMode === 'master' && !config.discord.masterChannelId && !config.discord.defaultChannelId) {
+if (config.discord.routeMode === 'master'
+  && isBotDelivery
+  && !config.discord.masterChannelId
+  && !config.discord.defaultChannelId) {
   log('warn', 'DISCORD_ROUTE_MODE=master but no DISCORD_MASTER_CHANNEL_ID or DISCORD_DEFAULT_CHANNEL_ID is configured.');
 }
 
-if (!config.discord.defaultChannelId && config.channelMap.size === 0 && config.discord.routeMode !== 'master') {
+if (config.discord.routeMode === 'master'
+  && isWebhookDelivery
+  && (!config.webhooks || (config.webhooks.defaultWebhookUrls || []).length === 0)) {
+  log('warn', 'DISCORD_ROUTE_MODE=master with webhook delivery but no default webhook URL is configured.');
+}
+
+if (!config.discord.defaultChannelId && config.channelMap.size === 0 && config.discord.routeMode !== 'master' && isBotDelivery) {
   log('warn', 'No default Discord channel and no channel mappings configured.');
+}
+
+if (config.discord.routeMode !== 'master'
+  && isWebhookDelivery
+  && (!config.webhooks || ((config.webhooks.channelMap || new Map()).size === 0 && (config.webhooks.defaultWebhookUrls || []).length === 0))) {
+  log('warn', 'Webhook delivery enabled but no webhook mappings/default webhook configured.');
 }
 
 const keyStore = config.channelSecrets.length > 0
   ? MeshCoreDecoder.createKeyStore({ channelSecrets: config.channelSecrets })
   : null;
 
-const discordClient = new Client({
-  intents: [GatewayIntentBits.Guilds]
-});
+if (!keyStore) {
+  log('warn', 'No channel secrets configured. Add secrets in channels.json and/or webhooks.json to decrypt GroupText.');
+}
+
+const discordClient = isBotDelivery
+  ? new Client({ intents: [GatewayIntentBits.Guilds] })
+  : null;
 
 const channelCache = new Map();
 
 async function getDiscordChannel(channelId) {
+  if (!discordClient) {
+    return null;
+  }
   if (channelCache.has(channelId)) {
     return channelCache.get(channelId);
   }
@@ -83,7 +109,7 @@ const observerAllowlistCompact = [...observerAllowlist]
 const relayShowPath = Boolean(config.relay.showPath);
 const relayPathWaitMs = Math.max(0, config.relay.pathWaitMs || 0);
 const relayPathMaxObservers = Math.max(1, config.relay.pathMaxObservers || 8);
-const relayPathEditUpdates = relayShowPath && Boolean(config.relay.pathEditUpdates);
+const relayPathEditUpdates = relayShowPath && isBotDelivery && Boolean(config.relay.pathEditUpdates);
 const relayPathEditWindowMs = Math.max(0, config.relay.pathEditWindowMs || 0);
 const relayPathEditMinIntervalMs = Math.max(0, config.relay.pathEditMinIntervalMs || 0);
 const relayEmbedColor = config.relay.embedColor || 0x1e2938;
@@ -419,7 +445,54 @@ function buildRelayEmbed(messageText) {
     .setColor(relayEmbedColor);
 }
 
+function normalizeWebhookUrl(value) {
+  const raw = String(value || '').trim();
+  if (!raw) {
+    return '';
+  }
+  try {
+    const parsed = new URL(raw);
+    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+      return '';
+    }
+    return parsed.toString();
+  } catch {
+    return '';
+  }
+}
+
+function buildWebhookSendUrl(webhookUrl) {
+  const parsed = new URL(webhookUrl);
+  parsed.searchParams.set('wait', 'true');
+  return parsed.toString();
+}
+
+function buildWebhookEditUrl(webhookUrl, messageId) {
+  const parsed = new URL(webhookUrl);
+  parsed.search = '';
+  parsed.hash = '';
+  parsed.pathname = `${parsed.pathname.replace(/\/$/, '')}/messages/${encodeURIComponent(String(messageId || ''))}`;
+  return parsed.toString();
+}
+
+function sanitizeWebhookUsername(value) {
+  const fallback = 'MeshCore';
+  const raw = String(value || '').replace(/[\r\n\t]+/g, ' ').trim();
+  if (!raw) {
+    return fallback;
+  }
+  return raw.slice(0, 80);
+}
+
+function buildWebhookAvatarUrl(username) {
+  const seed = String(username || 'MeshCore').trim() || 'MeshCore';
+  return `https://robohash.org/${encodeURIComponent(seed)}.png?set=set1&size=128x128`;
+}
+
 async function sendToDiscordChannels(channelIds, messageText) {
+  if (!discordClient) {
+    return [];
+  }
   const sentMessages = await Promise.all(channelIds.map(async (channelId) => {
     const channel = await getDiscordChannel(channelId);
     if (!channel) {
@@ -428,7 +501,7 @@ async function sendToDiscordChannels(channelIds, messageText) {
 
     try {
       const sentMessage = await channel.send({ embeds: [buildRelayEmbed(messageText)] });
-      return { channelId, sentMessage };
+      return { kind: 'bot', channelId, sentMessage };
     } catch (err) {
       log('warn', `Failed to send Discord message to ${channelId}: ${err?.message || err}`);
       return null;
@@ -436,6 +509,96 @@ async function sendToDiscordChannels(channelIds, messageText) {
   }));
 
   return sentMessages.filter(Boolean);
+}
+
+async function sendToWebhookUrls(webhookUrls, messageText, senderName) {
+  const username = sanitizeWebhookUsername(senderName);
+  const avatarUrl = buildWebhookAvatarUrl(username);
+  const sentMessages = await Promise.all(webhookUrls.map(async (urlValue) => {
+    const webhookUrl = normalizeWebhookUrl(urlValue);
+    if (!webhookUrl) {
+      log('warn', 'Skipping invalid webhook URL in webhook mapping.');
+      return null;
+    }
+
+    let response;
+    try {
+      response = await fetch(buildWebhookSendUrl(webhookUrl), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          username,
+          avatar_url: avatarUrl,
+          embeds: [buildRelayEmbed(messageText).toJSON()],
+          allowed_mentions: { parse: [] }
+        })
+      });
+    } catch (err) {
+      log('warn', `Failed to send webhook message: ${err?.message || err}`);
+      return null;
+    }
+
+    if (!response.ok) {
+      let detail = '';
+      try {
+        detail = await response.text();
+      } catch {
+        detail = '';
+      }
+      log('warn', `Webhook send failed (${response.status}): ${detail.slice(0, 180) || 'no response body'}`);
+      return null;
+    }
+
+    let messageId = '';
+    try {
+      const body = await response.json();
+      messageId = String(body?.id || '').trim();
+    } catch {
+      messageId = '';
+    }
+
+    return { kind: 'webhook', webhookUrl, messageId, username };
+  }));
+
+  return sentMessages.filter(Boolean);
+}
+
+async function editWebhookMessage(entry, messageText) {
+  if (!entry?.webhookUrl || !entry?.messageId) {
+    return;
+  }
+
+  let response;
+  try {
+    response = await fetch(buildWebhookEditUrl(entry.webhookUrl, entry.messageId), {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        embeds: [buildRelayEmbed(messageText).toJSON()],
+        allowed_mentions: { parse: [] }
+      })
+    });
+  } catch (err) {
+    log('warn', `Failed to edit webhook message: ${err?.message || err}`);
+    return;
+  }
+
+  if (!response.ok) {
+    let detail = '';
+    try {
+      detail = await response.text();
+    } catch {
+      detail = '';
+    }
+    log('warn', `Webhook edit failed (${response.status}): ${detail.slice(0, 180) || 'no response body'}`);
+  }
+}
+
+async function sendRelayTargets(targetIds, messageText, senderName) {
+  if (isWebhookDelivery) {
+    return sendToWebhookUrls(targetIds, messageText, senderName);
+  }
+  return sendToDiscordChannels(targetIds, messageText);
 }
 
 function clearSentRelayRecord(relayKey) {
@@ -511,6 +674,15 @@ async function editSentRelay(relayKey) {
   }
 
   await Promise.all(record.sentMessages.map(async (entry) => {
+    if (!entry || typeof entry !== 'object') {
+      return;
+    }
+
+    if (entry.kind === 'webhook') {
+      await editWebhookMessage(entry, nextRenderedMessageText);
+      return;
+    }
+
     if (!entry?.sentMessage?.editable) {
       return;
     }
@@ -597,9 +769,23 @@ function formatRelayMessage(channelInfo, payload, packet) {
   const senderRaw = String(payload.decrypted?.sender || '').trim();
   const body = (payload.decrypted?.message || '').trim();
   if (!body) {
-    return '';
+    return { messageText: '', senderName: '' };
   }
   let text = body;
+  const senderName = senderRaw || 'MeshCore';
+
+  if (isWebhookDelivery) {
+    if (config.discord.routeMode === 'master') {
+      const channel = escapeInline(channelLabel || 'unknown');
+      text = `${channel}: ${body}`;
+    } else {
+      text = body;
+    }
+    if (text.length > 1900) {
+      text = `${text.slice(0, 1890)}...`;
+    }
+    return { messageText: text, senderName };
+  }
 
   if (config.discord.routeMode === 'master') {
     const channel = escapeInline(channelLabel || 'unknown');
@@ -612,14 +798,14 @@ function formatRelayMessage(channelInfo, payload, packet) {
   if (text.length > 1900) {
     text = `${text.slice(0, 1890)}...`;
   }
-  return text;
+  return { messageText: text, senderName };
 }
 
-function pickChannels(channelHash) {
+function pickBotTargets(channelHash) {
   if (config.discord.routeMode === 'master') {
     const masterChannelId = config.discord.masterChannelId || config.discord.defaultChannelId;
     return {
-      channelIds: masterChannelId ? [masterChannelId] : [],
+      targetIds: masterChannelId ? [masterChannelId] : [],
       channelInfo: null
     };
   }
@@ -627,14 +813,43 @@ function pickChannels(channelHash) {
   const channelInfo = config.channelMap.get(channelHash) || null;
   if (channelInfo?.discordChannelIds?.length) {
     return {
-      channelIds: channelInfo.discordChannelIds,
+      targetIds: channelInfo.discordChannelIds,
       channelInfo
     };
   }
   return {
-    channelIds: config.discord.defaultChannelId ? [config.discord.defaultChannelId] : [],
+    targetIds: config.discord.defaultChannelId ? [config.discord.defaultChannelId] : [],
     channelInfo
   };
+}
+
+function pickWebhookTargets(channelHash) {
+  if (config.discord.routeMode === 'master') {
+    return {
+      targetIds: config.webhooks.defaultWebhookUrls || [],
+      channelInfo: null
+    };
+  }
+
+  const channelInfo = config.channelMap.get(channelHash) || null;
+  const mapped = config.webhooks.channelMap.get(channelHash);
+  if (mapped?.webhookUrls?.length) {
+    return {
+      targetIds: mapped.webhookUrls,
+      channelInfo
+    };
+  }
+  return {
+    targetIds: config.webhooks.defaultWebhookUrls || [],
+    channelInfo
+  };
+}
+
+function pickRelayTargets(channelHash) {
+  if (isWebhookDelivery) {
+    return pickWebhookTargets(channelHash);
+  }
+  return pickBotTargets(channelHash);
 }
 
 async function handlePacket(topic, payload) {
@@ -671,9 +886,13 @@ async function handlePacket(topic, payload) {
   }
 
   const channelHash = String(payloadDecoded.channelHash || '').toLowerCase();
-  const { channelIds, channelInfo } = pickChannels(channelHash);
-  if (channelIds.length === 0) {
-    log('debug', `No Discord channel for hash ${channelHash || 'unknown'}`);
+  const { targetIds, channelInfo } = pickRelayTargets(channelHash);
+  if (targetIds.length === 0) {
+    if (isWebhookDelivery) {
+      log('debug', `No webhook mapping for hash ${channelHash || 'unknown'}`);
+    } else {
+      log('debug', `No Discord channel for hash ${channelHash || 'unknown'}`);
+    }
     return;
   }
 
@@ -690,7 +909,8 @@ async function handlePacket(topic, payload) {
     return;
   }
 
-  const messageText = formatRelayMessage(channelInfo, payloadDecoded, decoded);
+  const relayMessage = formatRelayMessage(channelInfo, payloadDecoded, decoded);
+  const messageText = relayMessage.messageText;
   if (!messageText) {
     return;
   }
@@ -703,12 +923,12 @@ async function handlePacket(topic, payload) {
       pendingRelayTimers.delete(relayKey);
       const latestPath = getMessagePath(relayKey);
       const messageWithPath = applyPathSuffix(messageText, latestPath);
-      sendToDiscordChannels(channelIds, messageWithPath)
+      sendRelayTargets(targetIds, messageWithPath, relayMessage.senderName)
         .then((sentMessages) => {
           rememberSentRelay(relayKey, messageText, messageWithPath, sentMessages, Date.now());
         })
         .catch((err) => {
-          log('warn', `Failed to send delayed Discord message: ${err?.message || err}`);
+          log('warn', `Failed to send delayed relay message: ${err?.message || err}`);
         });
     }, relayPathWaitMs);
     pendingRelayTimers.set(relayKey, timer);
@@ -716,7 +936,7 @@ async function handlePacket(topic, payload) {
   }
 
   const messageWithPath = applyPathSuffix(messageText, pathState.path);
-  const sentMessages = await sendToDiscordChannels(channelIds, messageWithPath);
+  const sentMessages = await sendRelayTargets(targetIds, messageWithPath, relayMessage.senderName);
   rememberSentRelay(relayKey, messageText, messageWithPath, sentMessages, now);
 }
 
@@ -783,10 +1003,21 @@ function buildMqttClient() {
 
 let mqttClient = null;
 
-discordClient.once('ready', () => {
-  log('info', `Discord logged in as ${discordClient.user?.tag || 'unknown'}`);
+function logRuntimeSettings() {
+  if (isWebhookDelivery) {
+    log('info', 'Discord delivery mode: webhook');
+  } else {
+    log('info', `Discord logged in as ${discordClient?.user?.tag || 'unknown'}`);
+    log('info', 'Discord delivery mode: bot');
+  }
+
   if (config.discord.routeMode === 'master') {
-    log('info', `Routing mode: master (${config.discord.masterChannelId || config.discord.defaultChannelId || 'unset'})`);
+    if (isWebhookDelivery) {
+      const fallback = (config.webhooks.defaultWebhookUrls || []).length > 0 ? 'configured' : 'unset';
+      log('info', `Routing mode: master (default webhook ${fallback})`);
+    } else {
+      log('info', `Routing mode: master (${config.discord.masterChannelId || config.discord.defaultChannelId || 'unset'})`);
+    }
   } else {
     log('info', 'Routing mode: per_channel');
   }
@@ -797,14 +1028,28 @@ discordClient.once('ready', () => {
     log('info', `Message path display enabled (wait ${relayPathWaitMs}ms, max ${relayPathMaxObservers} observers).`);
     if (relayPathEditUpdates) {
       log('info', `Path update edits enabled (window ${relayPathEditWindowMs}ms, min interval ${relayPathEditMinIntervalMs}ms).`);
+    } else if (isWebhookDelivery) {
+      log('info', 'Path update edits disabled in webhook mode; hop collection uses RELAY_PATH_WAIT_MS before send.');
     }
   }
-  mqttClient = buildMqttClient();
-});
+}
 
-discordClient.on('error', (err) => {
-  log('warn', `Discord error: ${err?.message || err}`);
-});
+function startRelayRuntime() {
+  logRuntimeSettings();
+  mqttClient = buildMqttClient();
+}
+
+if (isBotDelivery && discordClient) {
+  discordClient.once('ready', () => {
+    startRelayRuntime();
+  });
+
+  discordClient.on('error', (err) => {
+    log('warn', `Discord error: ${err?.message || err}`);
+  });
+} else {
+  startRelayRuntime();
+}
 
 process.on('SIGINT', () => {
   log('info', 'Shutting down...');
@@ -818,7 +1063,9 @@ process.on('SIGINT', () => {
   if (mqttClient) {
     mqttClient.end(true);
   }
-  discordClient.destroy();
+  if (discordClient) {
+    discordClient.destroy();
+  }
   process.exit(0);
 });
 
@@ -834,11 +1081,15 @@ process.on('SIGTERM', () => {
   if (mqttClient) {
     mqttClient.end(true);
   }
-  discordClient.destroy();
+  if (discordClient) {
+    discordClient.destroy();
+  }
   process.exit(0);
 });
 
-discordClient.login(config.discord.token).catch((err) => {
-  log('error', `Discord login failed: ${err?.message || err}`);
-  process.exit(1);
-});
+if (isBotDelivery && discordClient) {
+  discordClient.login(config.discord.token).catch((err) => {
+    log('error', `Discord login failed: ${err?.message || err}`);
+    process.exit(1);
+  });
+}

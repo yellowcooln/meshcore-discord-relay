@@ -1,0 +1,17 @@
+{
+  "default_webhook_url": "",
+  "channels": [
+    {
+      "name": "public",
+      "secret": "8b3387e9c5cdea6ac9e5edbaa115cd72",
+      "webhook_url": "https://discord.com/api/webhooks/123456789012345678/replace-with-token"
+    },
+    {
+      "name": "private-alpha",
+      "secret": "ff2b7d74e8d20f71505bda9ea8d59a1c",
+      "webhook_urls": [
+        "https://discord.com/api/webhooks/234567890123456789/replace-with-token"
+      ]
+    }
+  ]
+}

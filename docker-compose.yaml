@@ -4,7 +4,9 @@ services:
     env_file:
       - .env
     environment:
-      CHANNELS_FILE: /data/channels.json
+      CHANNELS_FILE: /data/channels.yaml
+      WEBHOOKS_FILE: /data/webhooks.yaml
     volumes:
-      - ./channels.json:/data/channels.json:ro
+      - ./channels.yaml:/data/channels.yaml:ro
+      - ./webhooks.yaml:/data/webhooks.yaml:ro
     restart: unless-stopped

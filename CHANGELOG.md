@@ -1,5 +1,29 @@
 # Changelog
 
+## v1.3.0 - webhook upgrade
+
+### Added
+
+- Configurable Discord delivery mode via `DISCORD_DELIVERY_MODE` with `bot` and `webhook` options.
+- Per-channel webhook routing via `WEBHOOKS_FILE` with `name`, `secret`, or `hash` channel matching.
+- Webhook sender identity support using per-message webhook `username` from Mesh sender name.
+- Deterministic webhook robot avatars using RoboHash (`set1`) via webhook `avatar_url`.
+- YAML config support for channel and webhook files (`.yaml` / `.yml`) while keeping JSON support.
+- Added webhook example files: `webhooks.example.json` and `webhooks.yaml.example`.
+- Added channel example files: `channels.example.json` and `channels.yaml.example`.
+- Added local YAML runtime files: `channels.yaml` and `webhooks.yaml`.
+
+### Changed
+
+- Webhook mode no longer requires Discord bot login; populated `DISCORD_TOKEN` is ignored in webhook delivery mode.
+- Webhook mode now uses pre-send hop collection (`RELAY_PATH_WAIT_MS`) and disables post-send edit updates.
+- Webhook channel secrets now contribute to decryption key loading, enabling webhook-only deployments.
+- `src/config.js` now parses channel/webhook config as JSON or YAML based on file extension.
+- Default config paths now point to YAML (`CHANNELS_FILE=channels.yaml`, `WEBHOOKS_FILE=webhooks.yaml`).
+- Docker Compose now mounts YAML config files by default.
+- Docker image now includes YAML example files for first-run setup.
+- README, how-to docs, env examples, and changelog were updated for webhook mode and YAML-first config.
+
 ## v1.2.1 - 2026-03-01
 
 ### Added
