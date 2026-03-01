@@ -75,7 +75,7 @@ docker compose logs -f meshcore-discord-relay
 ### Message Format
 
 - Relayed text format: `**NodeName**: message`
-- If `RELAY_SHOW_PATH=true`, a second line is appended: `[22,97,25,01]`
+- If `RELAY_SHOW_PATH=true`, a second line is appended: ``[`22`,`97`,`25`,`01`]``
 
 ### channels.json
 
@@ -108,7 +108,7 @@ Each entry provides a MeshCore channel secret (hex) and one or more Discord chan
 - Observer allowlist matching is case-insensitive and normalization-based. Example: `MQTT_OBSERVER_ALLOWLIST=DeputyDawg,YC-Observer` will match `DeputyDawg - Observer`.
 - With an observer allowlist enabled, messages are held until at least one whitelisted observer sees that message.
 - Path collection still includes non-whitelisted observers for the same message, so full hop history can be shown.
-- When `RELAY_SHOW_PATH=true`, relayed messages include a bracketed path line that prefers decoded packet repeater path data (for example `[22,97,25,01]`), with observer-derived fallback if packet path is unavailable.
+- When `RELAY_SHOW_PATH=true`, relayed messages include a bracketed path line with each hop shown as inline code (for example ``[`22`,`97`,`25`,`01`]``). Repeater path bytes are preferred, with observer-derived fallback if packet path is unavailable.
 - `RELAY_PATH_WAIT_MS` trades latency for better path completeness. Larger values capture more observer hops before posting.
 - With `RELAY_PATH_EDIT_UPDATES=true`, messages can be edited after posting when new repeats are heard, throttled by `RELAY_PATH_EDIT_MIN_INTERVAL_MS` and bounded by `RELAY_PATH_EDIT_WINDOW_MS`.
 - If Discord posting fails, logs show `Missing Permissions` with the channel ID. Grant `View Channel`, `Send Messages`, and `Read Message History` to the bot.

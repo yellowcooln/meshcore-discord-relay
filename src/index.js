@@ -399,7 +399,10 @@ function applyPathSuffix(messageText, observers) {
 
   const shown = observers.slice(0, relayPathMaxObservers);
   const hiddenCount = observers.length - shown.length;
-  const formatted = shown.map((hop) => (/^[0-9a-f]{2}$/i.test(hop) ? hop.toUpperCase() : hop));
+  const formatted = shown.map((hop) => {
+    const value = /^[0-9a-f]{2}$/i.test(hop) ? hop.toUpperCase() : hop;
+    return `\`${String(value).replace(/`/g, '\\`')}\``;
+  });
   const suffix = `\n[${formatted.join(',')}${hiddenCount > 0 ? `,+${hiddenCount}` : ''}]`;
 
   if (messageText.length + suffix.length <= 1900) {
