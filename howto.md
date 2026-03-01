@@ -25,25 +25,17 @@ cp channels.yaml.example channels.yaml
 cp webhooks.yaml.example webhooks.yaml
 ```
 
-## 4. Configure `.env`
+## 4. Configure Shared `.env` Values
 
-Edit `.env` and set at minimum:
+Edit `.env` and set the shared settings first (these apply to both modes):
 
-- `DISCORD_DELIVERY_MODE` (`bot` or `webhook`)
-- `DISCORD_TOKEN` (required when `DISCORD_DELIVERY_MODE=bot`)
 - `MQTT_HOST`
 - `MQTT_PORT`
 - `MQTT_USERNAME` / `MQTT_PASSWORD` (if required)
 - `MQTT_TOPIC` (for example `meshcore/BOS/#`)
 - `MQTT_TRANSPORT` (`tcp` or `websockets`)
 - `MQTT_TLS` (`true` if your broker uses TLS)
-
-Routing mode:
-
-- `DISCORD_ROUTE_MODE=per_channel` to route by `CHANNELS_FILE` (`channels.yaml` by default)
-- `DISCORD_ROUTE_MODE=master` to send everything to one channel
-  - bot mode: set `DISCORD_MASTER_CHANNEL_ID`
-  - webhook mode: set `default_webhook_url` in your webhook config file
+- `DISCORD_ROUTE_MODE` (`per_channel` or `master`)
 
 Optional:
 
@@ -51,11 +43,25 @@ Optional:
 - `RELAY_EMBED_COLOR="#1e2938"` for embed color
 - `MQTT_OBSERVER_ALLOWLIST=name1,name2` to require observer match
 
-## 5. Configure `channels.yaml`
+## 5. Choose Delivery Mode
 
-Add your Mesh channel secrets and Discord channel IDs.
+Pick exactly one mode below. Keep the shared settings from Step 4, then apply either Option A or Option B.
 
-Example:
+Quick mode summary:
+
+- Bot mode: uses one bot token, supports editing previously sent messages when path updates arrive.
+- Webhook mode: posts with per-sender display names/avatars, but cannot edit previously sent webhook messages.
+
+### Option A: Bot Mode
+
+Set these in `.env`:
+
+- `DISCORD_DELIVERY_MODE=bot`
+- `DISCORD_TOKEN=...` (required)
+- If using `DISCORD_ROUTE_MODE=master`, set `DISCORD_MASTER_CHANNEL_ID` (or fallback `DISCORD_DEFAULT_CHANNEL_ID`)
+- `WEBHOOKS_FILE` is optional and ignored in bot mode
+
+Use `channels.yaml` for decrypt keys and channel routing.
 
 ```yaml
 default_channel_id: "123456789012345678"
@@ -66,18 +72,16 @@ channels:
       - "123456789012345678"
 ```
 
-Notes:
+### Option B: Webhook Mode
 
-- Keep secrets as hex strings.
-- If a channel key is missing, encrypted messages for that channel are skipped.
-- In `master` mode, `CHANNELS_FILE` is still used for decryption keys.
-- JSON is also supported (`channels.json`) if preferred.
+Set these in `.env`:
 
-## 5b. Configure `webhooks.yaml` (Webhook Mode Only)
+- `DISCORD_DELIVERY_MODE=webhook`
+- `DISCORD_TOKEN` can stay populated but is ignored in webhook mode
+- If using `DISCORD_ROUTE_MODE=master`, set `default_webhook_url` in `webhooks.yaml`
+- `CHANNELS_FILE` is still required for channel decrypt keys
 
-If `DISCORD_DELIVERY_MODE=webhook`, configure webhook routing in `webhooks.yaml` (or `webhooks.json`).
-
-Example:
+Use `webhooks.yaml` for webhook routing.
 
 ```yaml
 default_webhook_url: ""
@@ -86,6 +90,18 @@ channels:
     secret: "8b3387e9c5cdea6ac9e5edbaa115cd72"
     webhook_url: "https://discord.com/api/webhooks/123456789012345678/replace-with-token"
 ```
+
+Notes for both modes:
+
+- Keep secrets as hex strings.
+- If a channel key is missing, encrypted messages for that channel are skipped.
+- In `master` mode, `CHANNELS_FILE` is still used for decryption keys.
+- JSON is also supported (`channels.json`, `webhooks.json`) if preferred.
+
+Recommended startup defaults:
+
+- Start with `DISCORD_ROUTE_MODE=per_channel` while testing.
+- Switch to `master` only after you confirm channel decrypt keys are working.
 
 ## 6. Start The Relay
 
