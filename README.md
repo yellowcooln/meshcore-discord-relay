@@ -91,6 +91,16 @@ docker compose logs -f meshcore-discord-relay
 - `webhook` delivery format: webhook `username` is sender name; embed description is the message body
 - If `RELAY_SHOW_PATH=true`, a second line is appended: ``[`22`,`97`,`25`,`01`]``
 
+#### Example Output
+
+Webhook mode:
+
+![Webhook mode example](./docs/images/webhook-example.png)
+
+Bot mode:
+
+![Bot mode example](./docs/images/bot-example.png)
+
 ### Channels File (`CHANNELS_FILE`)
 
 Each entry provides a MeshCore channel secret (hex) and one or more Discord channel IDs to post into. The relay derives the channel hash from the secret, decrypts the GroupText payload, and routes based on that hash.
