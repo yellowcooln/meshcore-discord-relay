@@ -88,20 +88,14 @@ docker compose logs -f meshcore-discord-relay
 
 Each entry provides a MeshCore channel secret (hex) and one or more Discord channel IDs to post into. The relay derives the channel hash from the secret, decrypts the GroupText payload, and routes based on that hash.
 
-```json
-{
-  "default_channel_id": "123456789012345678",
-  "channels": [
-    {
-      "name": "public",
-      "secret": "8b3387e9c5cdea6ac9e5edbaa115cd72",
-      "discord_channel_ids": [
-        "123456789012345678",
-        "345678901234567890"
-      ]
-    }
-  ]
-}
+```yaml
+default_channel_id: "123456789012345678"
+channels:
+  - name: "public"
+    secret: "8b3387e9c5cdea6ac9e5edbaa115cd72"
+    discord_channel_ids:
+      - "123456789012345678"
+      - "345678901234567890"
 ```
 
 `discord_channel_id` is still supported for single-channel mappings. You can also repeat the same `secret`/`hash` in multiple entries and the relay will merge their Discord channel IDs.
