@@ -1,5 +1,20 @@
 # Changelog
 
+## v1.2.1 - 2026-03-01
+
+### Added
+
+- Optional post-send path edits (throttled and time-bounded) so relay messages can update when later repeats are heard.
+- New relay settings:
+  - `RELAY_PATH_EDIT_UPDATES`
+  - `RELAY_PATH_EDIT_WINDOW_MS`
+  - `RELAY_PATH_EDIT_MIN_INTERVAL_MS`
+
+### Changed
+
+- Updated README and `.env.example` with the new path edit behavior and configuration details.
+- Bumped app version to `0.1.1`.
+
 ## v1.2 - 2026-02-28
 
 ### Added

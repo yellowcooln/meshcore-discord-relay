@@ -83,11 +83,16 @@ const observerAllowlistCompact = [...observerAllowlist]
 const relayShowPath = Boolean(config.relay.showPath);
 const relayPathWaitMs = Math.max(0, config.relay.pathWaitMs || 0);
 const relayPathMaxObservers = Math.max(1, config.relay.pathMaxObservers || 8);
+const relayPathEditUpdates = relayShowPath && Boolean(config.relay.pathEditUpdates);
+const relayPathEditWindowMs = Math.max(0, config.relay.pathEditWindowMs || 0);
+const relayPathEditMinIntervalMs = Math.max(0, config.relay.pathEditMinIntervalMs || 0);
 const relayEmbedColor = config.relay.embedColor || 0x1e2938;
 const trackMessageState = relayShowPath || observerAllowlist.size > 0;
 const pathCacheWindowMs = Math.max(dedupeWindowMs, relayPathWaitMs + 5000);
+const sentRelayCacheWindowMs = Math.max(pathCacheWindowMs, relayPathEditWindowMs + 5000);
 const messagePathCache = new Map();
 const pendingRelayTimers = new Map();
+const sentRelayCache = new Map();
 
 function normalizeObserverName(value) {
   if (!value || typeof value !== 'string') {
@@ -405,23 +410,154 @@ function applyPathSuffix(messageText, observers) {
   return `${messageText.slice(0, trimmedLength)}...${suffix}`;
 }
 
-async function sendToDiscordChannels(channelIds, messageText) {
-  const embed = new EmbedBuilder()
+function buildRelayEmbed(messageText) {
+  return new EmbedBuilder()
     .setDescription(messageText)
     .setColor(relayEmbedColor);
+}
 
-  await Promise.all(channelIds.map(async (channelId) => {
+async function sendToDiscordChannels(channelIds, messageText) {
+  const sentMessages = await Promise.all(channelIds.map(async (channelId) => {
     const channel = await getDiscordChannel(channelId);
     if (!channel) {
-      return;
+      return null;
     }
 
     try {
-      await channel.send({ embeds: [embed] });
+      const sentMessage = await channel.send({ embeds: [buildRelayEmbed(messageText)] });
+      return { channelId, sentMessage };
     } catch (err) {
       log('warn', `Failed to send Discord message to ${channelId}: ${err?.message || err}`);
+      return null;
     }
   }));
+
+  return sentMessages.filter(Boolean);
+}
+
+function clearSentRelayRecord(relayKey) {
+  const record = sentRelayCache.get(relayKey);
+  if (!record) {
+    return;
+  }
+  if (record.pendingEditTimer) {
+    clearTimeout(record.pendingEditTimer);
+  }
+  sentRelayCache.delete(relayKey);
+}
+
+function rememberSentRelay(relayKey, baseMessageText, renderedMessageText, sentMessages, now) {
+  if (!relayPathEditUpdates || !relayShowPath || !relayKey || !Array.isArray(sentMessages) || sentMessages.length === 0) {
+    return;
+  }
+
+  clearSentRelayRecord(relayKey);
+  sentRelayCache.set(relayKey, {
+    baseMessageText,
+    renderedMessageText,
+    sentMessages,
+    sentAt: now,
+    lastEditAt: now,
+    pendingEditTimer: null
+  });
+}
+
+function canEditSentRelay(record, now) {
+  if (!record) {
+    return false;
+  }
+  if (relayPathEditWindowMs <= 0) {
+    return true;
+  }
+  return now - record.sentAt <= relayPathEditWindowMs;
+}
+
+async function editSentRelay(relayKey) {
+  const record = sentRelayCache.get(relayKey);
+  if (!record) {
+    return;
+  }
+
+  const now = Date.now();
+  if (!canEditSentRelay(record, now)) {
+    clearSentRelayRecord(relayKey);
+    return;
+  }
+
+  const latestPath = getMessagePath(relayKey);
+  const nextRenderedMessageText = applyPathSuffix(record.baseMessageText, latestPath);
+  if (!nextRenderedMessageText || nextRenderedMessageText === record.renderedMessageText) {
+    return;
+  }
+
+  const sinceLastEdit = now - record.lastEditAt;
+  if (sinceLastEdit < relayPathEditMinIntervalMs) {
+    const waitMs = relayPathEditMinIntervalMs - sinceLastEdit;
+    if (!record.pendingEditTimer) {
+      record.pendingEditTimer = setTimeout(() => {
+        const latestRecord = sentRelayCache.get(relayKey);
+        if (latestRecord) {
+          latestRecord.pendingEditTimer = null;
+        }
+        editSentRelay(relayKey).catch((err) => {
+          log('warn', `Failed to update relay message ${relayKey}: ${err?.message || err}`);
+        });
+      }, waitMs);
+    }
+    return;
+  }
+
+  await Promise.all(record.sentMessages.map(async (entry) => {
+    if (!entry?.sentMessage?.editable) {
+      return;
+    }
+    try {
+      await entry.sentMessage.edit({ embeds: [buildRelayEmbed(nextRenderedMessageText)] });
+    } catch (err) {
+      log('warn', `Failed to edit Discord message in ${entry.channelId}: ${err?.message || err}`);
+    }
+  }));
+
+  record.renderedMessageText = nextRenderedMessageText;
+  record.lastEditAt = Date.now();
+}
+
+function requestPathEdit(relayKey) {
+  if (!relayPathEditUpdates || !relayShowPath || !relayKey) {
+    return;
+  }
+  const record = sentRelayCache.get(relayKey);
+  if (!record) {
+    return;
+  }
+
+  const now = Date.now();
+  if (!canEditSentRelay(record, now)) {
+    clearSentRelayRecord(relayKey);
+    return;
+  }
+
+  if (record.pendingEditTimer) {
+    return;
+  }
+
+  const waitMs = Math.max(0, relayPathEditMinIntervalMs - (now - record.lastEditAt));
+  if (waitMs === 0) {
+    editSentRelay(relayKey).catch((err) => {
+      log('warn', `Failed to update relay message ${relayKey}: ${err?.message || err}`);
+    });
+    return;
+  }
+
+  record.pendingEditTimer = setTimeout(() => {
+    const latestRecord = sentRelayCache.get(relayKey);
+    if (latestRecord) {
+      latestRecord.pendingEditTimer = null;
+    }
+    editSentRelay(relayKey).catch((err) => {
+      log('warn', `Failed to update relay message ${relayKey}: ${err?.message || err}`);
+    });
+  }, waitMs);
 }
 
 function shouldRelayMessage(key, now) {
@@ -445,17 +581,29 @@ setInterval(() => {
       messagePathCache.delete(key);
     }
   }
+  for (const [key, record] of sentRelayCache.entries()) {
+    if (!record || now - record.sentAt > sentRelayCacheWindowMs) {
+      clearSentRelayRecord(key);
+    }
+  }
 }, Math.max(10000, dedupeWindowMs));
 
 function formatRelayMessage(channelInfo, payload, packet) {
+  const escapeInline = (value) => String(value || '').replace(/([*_`~\\])/g, '\\$1');
+  const channelLabel = String(channelInfo?.name || '').trim();
   const senderRaw = String(payload.decrypted?.sender || '').trim();
   const body = (payload.decrypted?.message || '').trim();
   if (!body) {
     return '';
   }
   let text = body;
-  if (senderRaw) {
-    const sender = senderRaw.replace(/([*_`~\\])/g, '\\$1');
+
+  if (config.discord.routeMode === 'master') {
+    const channel = escapeInline(channelLabel || 'unknown');
+    const sender = escapeInline(senderRaw || 'unknown');
+    text = `${channel}: ${sender}: ${body}`;
+  } else if (senderRaw) {
+    const sender = escapeInline(senderRaw);
     text = `**${sender}**: ${body}`;
   }
   if (text.length > 1900) {
@@ -535,6 +683,7 @@ async function handlePacket(topic, payload) {
   }
 
   if (!shouldRelayMessage(relayKey, now)) {
+    requestPathEdit(relayKey);
     return;
   }
 
@@ -551,16 +700,21 @@ async function handlePacket(topic, payload) {
       pendingRelayTimers.delete(relayKey);
       const latestPath = getMessagePath(relayKey);
       const messageWithPath = applyPathSuffix(messageText, latestPath);
-      sendToDiscordChannels(channelIds, messageWithPath).catch((err) => {
-        log('warn', `Failed to send delayed Discord message: ${err?.message || err}`);
-      });
+      sendToDiscordChannels(channelIds, messageWithPath)
+        .then((sentMessages) => {
+          rememberSentRelay(relayKey, messageText, messageWithPath, sentMessages, Date.now());
+        })
+        .catch((err) => {
+          log('warn', `Failed to send delayed Discord message: ${err?.message || err}`);
+        });
     }, relayPathWaitMs);
     pendingRelayTimers.set(relayKey, timer);
     return;
   }
 
   const messageWithPath = applyPathSuffix(messageText, pathState.path);
-  await sendToDiscordChannels(channelIds, messageWithPath);
+  const sentMessages = await sendToDiscordChannels(channelIds, messageWithPath);
+  rememberSentRelay(relayKey, messageText, messageWithPath, sentMessages, now);
 }
 
 function buildMqttClient() {
@@ -638,6 +792,9 @@ discordClient.once('ready', () => {
   }
   if (relayShowPath) {
     log('info', `Message path display enabled (wait ${relayPathWaitMs}ms, max ${relayPathMaxObservers} observers).`);
+    if (relayPathEditUpdates) {
+      log('info', `Path update edits enabled (window ${relayPathEditWindowMs}ms, min interval ${relayPathEditMinIntervalMs}ms).`);
+    }
   }
   mqttClient = buildMqttClient();
 });
@@ -652,6 +809,9 @@ process.on('SIGINT', () => {
     clearTimeout(timer);
   }
   pendingRelayTimers.clear();
+  for (const key of sentRelayCache.keys()) {
+    clearSentRelayRecord(key);
+  }
   if (mqttClient) {
     mqttClient.end(true);
   }
@@ -665,6 +825,9 @@ process.on('SIGTERM', () => {
     clearTimeout(timer);
   }
   pendingRelayTimers.clear();
+  for (const key of sentRelayCache.keys()) {
+    clearSentRelayRecord(key);
+  }
   if (mqttClient) {
     mqttClient.end(true);
   }

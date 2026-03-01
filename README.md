@@ -2,6 +2,8 @@
 
 Relays MeshCore GroupText chat messages from MQTT into Discord channels. It uses `@michaelhart/meshcore-decoder` to decrypt GroupText messages with channel secrets.
 
+Current release: `v1.2.1` (`package.json` version `0.1.1`).
+
 See [CHANGELOG.md](./CHANGELOG.md) for release history.
 See [howto.md](./howto.md) for end-to-end Linux deployment steps.
 
@@ -54,6 +56,9 @@ docker compose logs -f meshcore-discord-relay
 - `RELAY_SHOW_PATH`: Set `true` to append a path line to relayed Discord messages.
 - `RELAY_EMBED_COLOR`: Discord embed color in hex format (`#RRGGBB`), default `#1e2938` (quote the value in `.env`, for example `"#1e2938"`).
 - `RELAY_PATH_WAIT_MS`: Milliseconds to wait before sending when path display is enabled (collects additional hops for the same message).
+- `RELAY_PATH_EDIT_UPDATES`: If `true`, the bot edits sent Discord messages when additional hops are heard.
+- `RELAY_PATH_EDIT_WINDOW_MS`: Max window (ms) after initial send where path edits are allowed.
+- `RELAY_PATH_EDIT_MIN_INTERVAL_MS`: Minimum delay (ms) between edit API calls for the same message.
 - `RELAY_PATH_MAX_OBSERVERS`: Max hops shown in the path line.
 
 ### Routing Modes
@@ -105,4 +110,5 @@ Each entry provides a MeshCore channel secret (hex) and one or more Discord chan
 - Path collection still includes non-whitelisted observers for the same message, so full hop history can be shown.
 - When `RELAY_SHOW_PATH=true`, relayed messages include a bracketed path line that prefers decoded packet repeater path data (for example `[22,97,25,01]`), with observer-derived fallback if packet path is unavailable.
 - `RELAY_PATH_WAIT_MS` trades latency for better path completeness. Larger values capture more observer hops before posting.
+- With `RELAY_PATH_EDIT_UPDATES=true`, messages can be edited after posting when new repeats are heard, throttled by `RELAY_PATH_EDIT_MIN_INTERVAL_MS` and bounded by `RELAY_PATH_EDIT_WINDOW_MS`.
 - If Discord posting fails, logs show `Missing Permissions` with the channel ID. Grant `View Channel`, `Send Messages`, and `Read Message History` to the bot.

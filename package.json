@@ -1,6 +1,6 @@
 {
   "name": "meshcore-discord-relay",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "private": true,
   "type": "module",
   "description": "Discord relay for MeshCore MQTT text chat messages",
