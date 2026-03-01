@@ -6,6 +6,7 @@ Current release: `v1.3.0` (`package.json` version `0.1.1`).
 
 See [CHANGELOG.md](./CHANGELOG.md) for release history.
 See [howto.md](./howto.md) for end-to-end Linux deployment steps.
+See [MIGRATION.md](./MIGRATION.md) for bot-to-webhook migration steps.
 
 ## Docker
 
