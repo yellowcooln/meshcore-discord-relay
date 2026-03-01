@@ -21,8 +21,16 @@
 - `src/config.js` now parses channel/webhook config as JSON or YAML based on file extension.
 - Default config paths now point to YAML (`CHANNELS_FILE=channels.yaml`, `WEBHOOKS_FILE=webhooks.yaml`).
 - Docker Compose now mounts YAML config files by default.
+- Docker Compose now defines a named bridge network (`meshcore-relay`) and maps `host.docker.internal` to the host gateway for same-host MQTT connectivity.
 - Docker image now includes YAML example files for first-run setup.
 - README, how-to docs, env examples, and changelog were updated for webhook mode and YAML-first config.
+- Upgrade compatibility note: JSON config files still work if you keep these values:
+  - In `.env`: `CHANNELS_FILE=channels.json` and `WEBHOOKS_FILE=webhooks.json`
+  - In `docker-compose.yaml`:
+    - `CHANNELS_FILE: /data/channels.json`
+    - `WEBHOOKS_FILE: /data/webhooks.json`
+    - `- ./channels.json:/data/channels.json:ro`
+    - `- ./webhooks.json:/data/webhooks.json:ro`
 
 ## v1.2.1 - 2026-03-01
 

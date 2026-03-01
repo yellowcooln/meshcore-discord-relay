@@ -37,6 +37,11 @@ Edit `.env` and set the shared settings first (these apply to both modes):
 - `MQTT_TLS` (`true` if your broker uses TLS)
 - `DISCORD_ROUTE_MODE` (`per_channel` or `master`)
 
+MQTT host tips:
+
+- If Mosquitto runs on the same Linux host (outside Docker), set `MQTT_HOST=host.docker.internal`.
+- If Mosquitto runs in Docker, place both containers on the same Docker network and use the Mosquitto service/container name as `MQTT_HOST`.
+
 Optional:
 
 - `RELAY_SHOW_PATH=true` to append path line
@@ -159,6 +164,8 @@ docker compose up -d --build
   - Webhook mode: set `default_webhook_url` in your webhook config file.
 - Embed color not applied:
   - Quote hex in `.env` like `RELAY_EMBED_COLOR="#1e2938"`.
+- MQTT unreachable when broker is on same host:
+  - Use `MQTT_HOST=host.docker.internal` (the compose file maps this to the host gateway).
 
 ## 10. Stop The Relay
 

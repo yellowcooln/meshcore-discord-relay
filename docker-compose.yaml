@@ -9,4 +9,13 @@ services:
     volumes:
       - ./channels.yaml:/data/channels.yaml:ro
       - ./webhooks.yaml:/data/webhooks.yaml:ro
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    networks:
+      - meshcore-relay
     restart: unless-stopped
+
+networks:
+  meshcore-relay:
+    name: meshcore-relay
+    driver: bridge

@@ -30,6 +30,13 @@ docker compose up -d --build
 docker compose logs -f meshcore-discord-relay
 ```
 
+### Docker Networking
+
+- Compose now creates a dedicated bridge network named `meshcore-relay`.
+- The relay container also gets `host.docker.internal` mapped to the Linux host gateway.
+- If Mosquitto is on the same host (not in Docker), set `MQTT_HOST=host.docker.internal`.
+- If Mosquitto is in Docker, attach it to `meshcore-relay` and set `MQTT_HOST` to that container/service name.
+
 ## Configuration
 
 ### .env Breakdown
@@ -39,7 +46,7 @@ docker compose logs -f meshcore-discord-relay
 - `DISCORD_ROUTE_MODE`: Discord routing mode. Use `per_channel` (default) to route by Mesh channel mapping, or `master` to send all relayed messages to one channel.
 - `DISCORD_MASTER_CHANNEL_ID`: Master Discord channel used when `DISCORD_ROUTE_MODE=master` (falls back to `DISCORD_DEFAULT_CHANNEL_ID` if unset).
 - `DISCORD_DEFAULT_CHANNEL_ID`: Fallback Discord channel if a Mesh channel hash is not mapped in `CHANNELS_FILE` (also fallback for master mode).
-- `MQTT_HOST`: MQTT broker host.
+- `MQTT_HOST`: MQTT broker host (for same-host Linux Mosquitto from Docker, use `host.docker.internal`).
 - `MQTT_PORT`: MQTT broker port.
 - `MQTT_USERNAME`: MQTT username (optional).
 - `MQTT_PASSWORD`: MQTT password (optional).
