@@ -9,8 +9,8 @@
 - Webhook sender identity support using per-message webhook `username` from Mesh sender name.
 - Deterministic webhook robot avatars using RoboHash (`set1`) via webhook `avatar_url`.
 - YAML config support for channel and webhook files (`.yaml` / `.yml`) while keeping JSON support.
-- Added webhook example files: `webhooks.example.json` and `webhooks.yaml.example`.
-- Added channel example files: `channels.example.json` and `channels.yaml.example`.
+- Added webhook example files: `webhooks.json.example` and `webhooks.yaml.example`.
+- Added channel example files: `channels.json.example` and `channels.yaml.example`.
 - Added local YAML runtime files: `channels.yaml` and `webhooks.yaml`.
 
 ### Changed
@@ -76,7 +76,7 @@
 - Observer matching is case-insensitive and normalization-based (for example `DeputyDawg` matches `DeputyDawg - Observer`).
 - Updated `.env.example` and README documentation for observer filtering.
 - Expanded README with a full `.env` variable breakdown.
-- Updated `channels.example.json` to document multi-channel fanout format.
+- Updated `channels.json.example` to document multi-channel fanout format.
 
 ## v1 - 2026-01-05 (`a0f4e53`)
 

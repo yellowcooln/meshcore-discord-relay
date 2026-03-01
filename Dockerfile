@@ -7,8 +7,8 @@ RUN npm install --omit=dev
 
 COPY src ./src
 COPY .env.example ./
-COPY channels.example.json ./
-COPY webhooks.example.json ./
+COPY channels.json.example ./
+COPY webhooks.json.example ./
 COPY channels.yaml.example ./
 COPY webhooks.yaml.example ./
 
