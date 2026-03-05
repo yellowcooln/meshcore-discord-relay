@@ -31,6 +31,21 @@ docker compose up -d --build
 docker compose logs -f meshcore-discord-relay
 ```
 
+## Testing
+
+Install deps and run the unit tests:
+
+```bash
+npm install
+npm test
+```
+
+Watch mode:
+
+```bash
+npm run test:watch
+```
+
 ### Docker Networking
 
 - Compose now creates a dedicated bridge network named `meshcore-relay`.

@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased
+
+### Added
+
+- Node unit test baseline using the built-in `node --test` runner.
+- Initial tests for `extractPacketHex` payload parsing paths (hex, base64, JSON, binary, invalid input).
+- Initial tests for `loadConfig` covering YAML/JSON parsing, bot/webhook routing behavior, and relay/env normalization.
+- CI workflow at `.github/workflows/tests.yml` to run tests on pushes and pull requests.
+
 ## v1.3.0 - webhook upgrade
 
 ### Added
