@@ -2,7 +2,7 @@
 
 Relays MeshCore GroupText chat messages from MQTT into Discord channels. It uses `@michaelhart/meshcore-decoder` to decrypt GroupText messages with channel secrets.
 
-Current release: `v1.3.0` (`package.json` version `0.1.1`).
+Current release: `v1.4.0`.
 
 See [CHANGELOG.md](./CHANGELOG.md) for release history.
 See [howto.md](./howto.md) for end-to-end Linux deployment steps.
@@ -80,6 +80,7 @@ npm run test:watch
 - `LOG_LEVEL`: `debug`, `info`, `warn`, or `error`.
 - `MQTT_OBSERVER_ALLOWLIST`: Optional comma-separated observer names; if set, only packets seen by these observers are relayed.
 - `RELAY_SHOW_PATH`: Set `true` to append a path line to relayed Discord messages.
+- `RELAY_BOT_MESSAGE_MODE`: Bot output style: `simple` (compact sender/message embed) or `detailed` (sender title + relay detail fields).
 - `RELAY_EMBED_COLOR`: Discord embed color in hex format (`#RRGGBB`), default `#1e2938` (quote the value in `.env`, for example `"#1e2938"`).
 - `RELAY_PATH_WAIT_MS`: Milliseconds to wait before sending when path display is enabled (collects additional hops for the same message).
 - `RELAY_PATH_EDIT_UPDATES`: If `true`, bot mode can edit sent Discord messages when additional hops are heard.
@@ -103,7 +104,8 @@ npm run test:watch
 
 ### Message Format
 
-- `bot` delivery format: `**NodeName**: message`
+- `bot` delivery with `RELAY_BOT_MESSAGE_MODE=simple`: embed description `**NodeName**: message`
+- `bot` delivery with `RELAY_BOT_MESSAGE_MODE=detailed`: embed title is sender name, description is message body, and fields include `Receiver Node`, `RSSI`, `SNR`, `Hops`, and `Path`; `Channel` is shown only in `DISCORD_ROUTE_MODE=master`
 - `webhook` delivery format: webhook `username` is sender name; embed description is the message body
 - If `RELAY_SHOW_PATH=true`, a second line is appended: ``[`22`,`97`,`25`,`01`]``
 
@@ -113,9 +115,13 @@ Webhook mode:
 
 ![Webhook mode example](./docs/images/webhook-example.png)
 
-Bot mode:
+Bot mode (simple):
 
-![Bot mode example](./docs/images/bot-example.png)
+![Bot simple mode example](./docs/images/bot-example.png)
+
+Bot mode (detailed):
+
+![Bot detailed mode example](https://sharex.yellowcooln.com/photos/firefox_J5pM5pKJ9r.png)
 
 ### Channels File (`CHANNELS_FILE`)
 
@@ -161,6 +167,7 @@ Both YAML and JSON are supported for webhook files.
 - When `RELAY_SHOW_PATH=true`, relayed messages include a bracketed path line with each hop shown as inline code (for example ``[`22`,`97`,`25`,`01`]``). Repeater path bytes are preferred, with observer-derived fallback if packet path is unavailable.
 - `RELAY_PATH_WAIT_MS` trades latency for better path completeness. Larger values capture more observer hops before posting.
 - With `RELAY_PATH_EDIT_UPDATES=true`, bot-mode messages can be edited after posting when new repeats are heard, throttled by `RELAY_PATH_EDIT_MIN_INTERVAL_MS` and bounded by `RELAY_PATH_EDIT_WINDOW_MS`.
+- Detailed bot mode (`RELAY_BOT_MESSAGE_MODE=detailed`) keeps the same relay behavior but changes embed layout to sender title + message body + receiver/metrics/path detail fields.
 - Webhook mode uses pre-send wait (`RELAY_PATH_WAIT_MS`) for hop/path completeness and does not do post-send edit updates.
 - If bot posting fails, logs can show `Missing Permissions` with the channel ID. Grant `View Channel`, `Send Messages`, and `Read Message History` to the bot.
 - In webhook mode, messages use per-sender robot avatars from RoboHash (`set1`) derived from sender name.

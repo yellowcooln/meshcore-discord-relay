@@ -52,6 +52,14 @@ function normalizeDeliveryMode(value) {
   return 'bot';
 }
 
+function normalizeBotMessageMode(value) {
+  const mode = String(value || '').trim().toLowerCase();
+  if (mode === 'detailed') {
+    return 'detailed';
+  }
+  return 'simple';
+}
+
 function normalizeEmbedColor(value, fallback = 0x1e2938) {
   const raw = String(value || '')
     .trim()
@@ -371,6 +379,7 @@ export function loadConfig() {
     logLevel: env('LOG_LEVEL', 'info').trim().toLowerCase(),
     observerAllowlist: [...new Set(envList('MQTT_OBSERVER_ALLOWLIST').map((name) => name.toLowerCase()))],
     showPath: envBool('RELAY_SHOW_PATH', false),
+    botMessageMode: normalizeBotMessageMode(env('RELAY_BOT_MESSAGE_MODE', 'simple')),
     pathWaitMs: Math.max(0, envInt('RELAY_PATH_WAIT_MS', 1200)),
     pathMaxObservers: Math.max(1, envInt('RELAY_PATH_MAX_OBSERVERS', 8)),
     pathEditUpdates: envBool('RELAY_PATH_EDIT_UPDATES', true),

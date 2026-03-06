@@ -39,6 +39,7 @@ const CONFIG_ENV_KEYS = [
   'LOG_LEVEL',
   'MQTT_OBSERVER_ALLOWLIST',
   'RELAY_SHOW_PATH',
+  'RELAY_BOT_MESSAGE_MODE',
   'RELAY_EMBED_COLOR',
   'RELAY_PATH_WAIT_MS',
   'RELAY_PATH_MAX_OBSERVERS',
@@ -207,6 +208,7 @@ test('loadConfig supports JSON files and normalizes relay settings', (t) => {
     DISCORD_DELIVERY_MODE: 'webhook',
     CHANNELS_FILE: channelsPath,
     WEBHOOKS_FILE: webhooksPath,
+    RELAY_BOT_MESSAGE_MODE: 'DETAILED',
     MQTT_OBSERVER_ALLOWLIST: 'DeputyDawg - Observer, YC-Observer, deputydawg - observer',
     RELAY_EMBED_COLOR: 'not-a-color',
     RELAY_PATH_WAIT_MS: '-100',
@@ -222,6 +224,7 @@ test('loadConfig supports JSON files and normalizes relay settings', (t) => {
       'deputydawg - observer',
       'yc-observer'
     ]);
+    assert.equal(config.relay.botMessageMode, 'detailed');
     assert.equal(config.relay.embedColor, 0x1e2938);
     assert.equal(config.relay.pathWaitMs, 0);
     assert.equal(config.relay.pathMaxObservers, 1);

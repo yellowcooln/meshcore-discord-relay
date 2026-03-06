@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## v1.4.0 - detailed bot mode
 
 ### Added
 
@@ -8,6 +8,19 @@
 - Initial tests for `extractPacketHex` payload parsing paths (hex, base64, JSON, binary, invalid input).
 - Initial tests for `loadConfig` covering YAML/JSON parsing, bot/webhook routing behavior, and relay/env normalization.
 - CI workflow at `.github/workflows/tests.yml` to run tests on pushes and pull requests.
+- Bot output mode toggle: `RELAY_BOT_MESSAGE_MODE=simple|detailed`.
+- Detailed bot embeds now include structured relay details:
+  - Title: sender name
+  - Description: message body
+  - Fields: `Receiver Node`, `RSSI`, `SNR`, `Hops`, `Path`
+  - `Channel` field appears only when `DISCORD_ROUTE_MODE=master`
+- Removed live map embed integration from detailed mode.
+
+### Changed
+
+- Detailed bot embed layout now uses sender as title and message as description.
+- Detailed mode now shows `Channel` only when `DISCORD_ROUTE_MODE=master`.
+- Bumped changelog release version to `v1.4.0`.
 
 ## v1.3.0 - webhook upgrade
 

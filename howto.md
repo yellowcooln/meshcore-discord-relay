@@ -45,6 +45,7 @@ MQTT host tips:
 Optional:
 
 - `RELAY_SHOW_PATH=true` to append path line
+- `RELAY_BOT_MESSAGE_MODE=simple` or `detailed` for bot output style (`detailed` adds receiver/metrics/path fields)
 - `RELAY_EMBED_COLOR="#1e2938"` for embed color
 - `MQTT_OBSERVER_ALLOWLIST=name1,name2` to require observer match
 
@@ -63,6 +64,9 @@ Set these in `.env`:
 
 - `DISCORD_DELIVERY_MODE=bot`
 - `DISCORD_TOKEN=...` (required)
+- Optional: `RELAY_BOT_MESSAGE_MODE=simple` (default) or `detailed`
+  - `simple`: compact sender/message embed
+  - `detailed`: sender title + message body + receiver/metrics/path fields
 - If using `DISCORD_ROUTE_MODE=master`, set `DISCORD_MASTER_CHANNEL_ID` (or fallback `DISCORD_DEFAULT_CHANNEL_ID`)
 - `WEBHOOKS_FILE` is optional and ignored in bot mode
 
@@ -131,6 +135,7 @@ docker compose logs -f meshcore-discord-relay
 Expected startup log lines include:
 
 - In bot mode: `Discord logged in as ...`
+- In bot mode: `Bot message mode: simple` or `Bot message mode: detailed`
 - In webhook mode: `Discord delivery mode: webhook`
 - `Routing mode: per_channel` or `Routing mode: master (...)`
 - `MQTT connected (...)`

@@ -107,6 +107,10 @@ const observerAllowlistCompact = [...observerAllowlist]
   .map((name) => name.replace(/[^a-z0-9]+/g, ''))
   .filter(Boolean);
 const relayShowPath = Boolean(config.relay.showPath);
+const relayBotMessageMode = String(config.relay.botMessageMode || 'simple').toLowerCase() === 'detailed'
+  ? 'detailed'
+  : 'simple';
+const useDetailedBotEmbeds = isBotDelivery && relayBotMessageMode === 'detailed';
 const relayPathWaitMs = Math.max(0, config.relay.pathWaitMs || 0);
 const relayPathMaxObservers = Math.max(1, config.relay.pathMaxObservers || 8);
 const relayPathEditUpdates = relayShowPath && isBotDelivery && Boolean(config.relay.pathEditUpdates);
@@ -418,18 +422,25 @@ function getMessagePath(relayKey) {
   return [...state.observers.values()];
 }
 
-function applyPathSuffix(messageText, observers) {
+function formatPathSuffix(observers) {
   if (!relayShowPath || !Array.isArray(observers) || observers.length === 0) {
-    return messageText;
+    return '';
   }
-
   const shown = observers.slice(0, relayPathMaxObservers);
   const hiddenCount = observers.length - shown.length;
   const formatted = shown.map((hop) => {
     const value = /^[0-9a-f]{2}$/i.test(hop) ? hop.toUpperCase() : hop;
     return `\`${String(value).replace(/`/g, '\\`')}\``;
   });
-  const suffix = `\n[${formatted.join(',')}${hiddenCount > 0 ? `,+${hiddenCount}` : ''}]`;
+  return `[${formatted.join(',')}${hiddenCount > 0 ? `,+${hiddenCount}` : ''}]`;
+}
+
+function applyPathSuffix(messageText, observers) {
+  const line = formatPathSuffix(observers);
+  if (!line) {
+    return messageText;
+  }
+  const suffix = `\n${line}`;
 
   if (messageText.length + suffix.length <= 1900) {
     return `${messageText}${suffix}`;
@@ -439,10 +450,186 @@ function applyPathSuffix(messageText, observers) {
   return `${messageText.slice(0, trimmedLength)}...${suffix}`;
 }
 
-function buildRelayEmbed(messageText) {
-  return new EmbedBuilder()
-    .setDescription(messageText)
-    .setColor(relayEmbedColor);
+function parseJsonPayload(payloadBuffer) {
+  if (!payloadBuffer || payloadBuffer.length === 0) {
+    return null;
+  }
+  const text = payloadBuffer.toString('utf8').trim();
+  if (!text || !text.startsWith('{') || !text.endsWith('}')) {
+    return null;
+  }
+  try {
+    return JSON.parse(text);
+  } catch {
+    return null;
+  }
+}
+
+function findFirstDeepValue(root, keyCandidates, acceptValue, maxNodes = 180) {
+  if (!root || typeof root !== 'object') {
+    return null;
+  }
+
+  const keySet = new Set(keyCandidates.map((item) => String(item).toLowerCase()));
+  const queue = [root];
+  let visited = 0;
+
+  while (queue.length > 0 && visited < maxNodes) {
+    const current = queue.shift();
+    visited += 1;
+    if (!current || typeof current !== 'object') {
+      continue;
+    }
+
+    for (const [key, value] of Object.entries(current)) {
+      const lowerKey = String(key || '').toLowerCase();
+      if (keySet.has(lowerKey) && acceptValue(value)) {
+        return value;
+      }
+      if (value && typeof value === 'object') {
+        queue.push(value);
+      }
+    }
+  }
+
+  return null;
+}
+
+function toFiniteNumber(value) {
+  if (typeof value === 'number') {
+    return Number.isFinite(value) ? value : null;
+  }
+  if (typeof value === 'string') {
+    const cleaned = value.trim().replace(/[^\d+.\-]/g, '');
+    if (!cleaned) {
+      return null;
+    }
+    const parsed = Number(cleaned);
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+  return null;
+}
+
+function extractReceiverNode(topic, decoded, payloadBuffer, observers) {
+  const direct = [
+    decoded?.receiverName,
+    decoded?.receiver,
+    decoded?.receiverId,
+    decoded?.rxBy
+  ].find((value) => typeof value === 'string' && value.trim());
+  if (direct) {
+    return String(direct).trim();
+  }
+
+  const json = parseJsonPayload(payloadBuffer);
+  if (json) {
+    const found = findFirstDeepValue(
+      json,
+      ['receiver', 'receiver_name', 'receiver_id', 'receiverid', 'rx_by', 'gateway', 'observer', 'origin'],
+      (value) => typeof value === 'string' && value.trim()
+    );
+    if (found) {
+      return String(found).trim();
+    }
+  }
+
+  if (Array.isArray(observers) && observers.length > 0) {
+    return observers[0];
+  }
+
+  if (topic && typeof topic === 'string') {
+    const parts = topic.split('/');
+    for (const part of parts) {
+      const trimmed = String(part || '').trim();
+      if (/^[0-9a-fA-F]{64}$/.test(trimmed)) {
+        return trimmed.slice(0, 8).toUpperCase();
+      }
+    }
+  }
+
+  return '';
+}
+
+function extractLinkMetrics(decoded, payloadBuffer) {
+  const fromDecodedRssi = toFiniteNumber(decoded?.rssi);
+  const fromDecodedSnr = toFiniteNumber(decoded?.snr);
+  if (fromDecodedRssi !== null || fromDecodedSnr !== null) {
+    return {
+      rssi: fromDecodedRssi,
+      snr: fromDecodedSnr
+    };
+  }
+
+  const json = parseJsonPayload(payloadBuffer);
+  if (!json) {
+    return { rssi: null, snr: null };
+  }
+
+  const rawRssi = findFirstDeepValue(
+    json,
+    ['rssi', 'rx_rssi', 'last_rssi', 'signal', 'dbm'],
+    (value) => toFiniteNumber(value) !== null
+  );
+  const rawSnr = findFirstDeepValue(
+    json,
+    ['snr', 'rx_snr', 'last_snr', 'signal_to_noise'],
+    (value) => toFiniteNumber(value) !== null
+  );
+
+  return {
+    rssi: toFiniteNumber(rawRssi),
+    snr: toFiniteNumber(rawSnr)
+  };
+}
+
+function buildRelayEmbed(messageText, embedDetails = null) {
+  if (!useDetailedBotEmbeds || !embedDetails) {
+    return new EmbedBuilder()
+      .setDescription(messageText)
+      .setColor(relayEmbedColor);
+  }
+
+  const trimField = (value, max = 1024) => {
+    const text = String(value || '').trim();
+    if (!text) {
+      return 'unknown';
+    }
+    if (text.length <= max) {
+      return text;
+    }
+    return `${text.slice(0, Math.max(0, max - 3))}...`;
+  };
+
+  const channelLabel = String(embedDetails.channelLabel || '').trim();
+  const senderLabel = String(embedDetails.senderRaw || embedDetails.senderName || 'MeshCore').trim() || 'MeshCore';
+  const bodyText = String(embedDetails.body || messageText || '').trim() || messageText;
+  const path = Array.isArray(embedDetails.path) ? embedDetails.path : [];
+  const pathLine = formatPathSuffix(path);
+  const hopsValue = path.length > 0 ? String(path.length) : 'direct';
+  const receiverNode = String(embedDetails.receiverNode || '').trim() || 'unknown';
+  const rssiText = Number.isFinite(embedDetails.rssi) ? `${Math.round(embedDetails.rssi)} dBm` : 'unknown';
+  const snrText = Number.isFinite(embedDetails.snr) ? `${Number(embedDetails.snr).toFixed(1)} dB` : 'unknown';
+
+  const embed = new EmbedBuilder()
+    .setColor(relayEmbedColor)
+    .setTitle(trimField(senderLabel, 256))
+    .setDescription(trimField(bodyText, 4096))
+    .setTimestamp(new Date());
+
+  const fields = [];
+  if (config.discord.routeMode === 'master' && channelLabel) {
+    fields.push({ name: 'Channel', value: trimField(channelLabel), inline: true });
+  }
+  fields.push(
+    { name: 'Receiver Node', value: receiverNode, inline: true },
+    { name: 'RSSI', value: rssiText, inline: true },
+    { name: 'SNR', value: snrText, inline: true },
+    { name: 'Hops', value: hopsValue, inline: true },
+    { name: 'Path', value: trimField(pathLine || '`direct`'), inline: false }
+  );
+  embed.addFields(fields);
+
+  return embed;
 }
 
 function normalizeWebhookUrl(value) {
@@ -489,7 +676,7 @@ function buildWebhookAvatarUrl(username) {
   return `https://robohash.org/${encodeURIComponent(seed)}.png?set=set1&size=128x128`;
 }
 
-async function sendToDiscordChannels(channelIds, messageText) {
+async function sendToDiscordChannels(channelIds, messageText, embedDetails = null) {
   if (!discordClient) {
     return [];
   }
@@ -500,7 +687,11 @@ async function sendToDiscordChannels(channelIds, messageText) {
     }
 
     try {
-      const sentMessage = await channel.send({ embeds: [buildRelayEmbed(messageText)] });
+      const payload = {
+        embeds: [buildRelayEmbed(messageText, embedDetails)]
+      };
+
+      const sentMessage = await channel.send(payload);
       return { kind: 'bot', channelId, sentMessage };
     } catch (err) {
       log('warn', `Failed to send Discord message to ${channelId}: ${err?.message || err}`);
@@ -594,11 +785,11 @@ async function editWebhookMessage(entry, messageText) {
   }
 }
 
-async function sendRelayTargets(targetIds, messageText, senderName) {
+async function sendRelayTargets(targetIds, messageText, senderName, embedDetails = null) {
   if (isWebhookDelivery) {
     return sendToWebhookUrls(targetIds, messageText, senderName);
   }
-  return sendToDiscordChannels(targetIds, messageText);
+  return sendToDiscordChannels(targetIds, messageText, embedDetails);
 }
 
 function clearSentRelayRecord(relayKey) {
@@ -612,7 +803,7 @@ function clearSentRelayRecord(relayKey) {
   sentRelayCache.delete(relayKey);
 }
 
-function rememberSentRelay(relayKey, baseMessageText, renderedMessageText, sentMessages, now) {
+function rememberSentRelay(relayKey, baseMessageText, renderedMessageText, sentMessages, now, embedDetails = null) {
   if (!relayPathEditUpdates || !relayShowPath || !relayKey || !Array.isArray(sentMessages) || sentMessages.length === 0) {
     return;
   }
@@ -621,6 +812,7 @@ function rememberSentRelay(relayKey, baseMessageText, renderedMessageText, sentM
   sentRelayCache.set(relayKey, {
     baseMessageText,
     renderedMessageText,
+    embedDetails,
     sentMessages,
     sentAt: now,
     lastEditAt: now,
@@ -651,9 +843,19 @@ async function editSentRelay(relayKey) {
   }
 
   const latestPath = getMessagePath(relayKey);
-  const nextRenderedMessageText = applyPathSuffix(record.baseMessageText, latestPath);
-  if (!nextRenderedMessageText || nextRenderedMessageText === record.renderedMessageText) {
+  const isDetailedRecord = Boolean(record.embedDetails && useDetailedBotEmbeds);
+  const nextRenderedMessageText = isDetailedRecord
+    ? record.baseMessageText
+    : applyPathSuffix(record.baseMessageText, latestPath);
+  if (!isDetailedRecord && (!nextRenderedMessageText || nextRenderedMessageText === record.renderedMessageText)) {
     return;
+  }
+  if (isDetailedRecord) {
+    const previousPathLine = formatPathSuffix(record.embedDetails.path || []);
+    const nextPathLine = formatPathSuffix(latestPath);
+    if (previousPathLine === nextPathLine) {
+      return;
+    }
   }
 
   const sinceLastEdit = now - record.lastEditAt;
@@ -687,13 +889,19 @@ async function editSentRelay(relayKey) {
       return;
     }
     try {
-      await entry.sentMessage.edit({ embeds: [buildRelayEmbed(nextRenderedMessageText)] });
+      const nextEmbedDetails = isDetailedRecord
+        ? { ...record.embedDetails, path: latestPath }
+        : null;
+      await entry.sentMessage.edit({ embeds: [buildRelayEmbed(nextRenderedMessageText, nextEmbedDetails)] });
     } catch (err) {
       log('warn', `Failed to edit Discord message in ${entry.channelId}: ${err?.message || err}`);
     }
   }));
 
   record.renderedMessageText = nextRenderedMessageText;
+  if (isDetailedRecord) {
+    record.embedDetails = { ...record.embedDetails, path: latestPath };
+  }
   record.lastEditAt = Date.now();
 }
 
@@ -769,7 +977,13 @@ function formatRelayMessage(channelInfo, payload, packet) {
   const senderRaw = String(payload.decrypted?.sender || '').trim();
   const body = (payload.decrypted?.message || '').trim();
   if (!body) {
-    return { messageText: '', senderName: '' };
+    return {
+      messageText: '',
+      senderName: '',
+      senderRaw: '',
+      channelLabel: '',
+      body: ''
+    };
   }
   let text = body;
   const senderName = senderRaw || 'MeshCore';
@@ -784,7 +998,26 @@ function formatRelayMessage(channelInfo, payload, packet) {
     if (text.length > 1900) {
       text = `${text.slice(0, 1890)}...`;
     }
-    return { messageText: text, senderName };
+    return {
+      messageText: text,
+      senderName,
+      senderRaw,
+      channelLabel,
+      body
+    };
+  }
+
+  if (useDetailedBotEmbeds) {
+    if (text.length > 1900) {
+      text = `${text.slice(0, 1890)}...`;
+    }
+    return {
+      messageText: text,
+      senderName,
+      senderRaw,
+      channelLabel,
+      body
+    };
   }
 
   if (config.discord.routeMode === 'master') {
@@ -798,7 +1031,13 @@ function formatRelayMessage(channelInfo, payload, packet) {
   if (text.length > 1900) {
     text = `${text.slice(0, 1890)}...`;
   }
-  return { messageText: text, senderName };
+  return {
+    messageText: text,
+    senderName,
+    senderRaw,
+    channelLabel,
+    body
+  };
 }
 
 function pickBotTargets(channelHash) {
@@ -887,6 +1126,7 @@ async function handlePacket(topic, payload) {
 
   const channelHash = String(payloadDecoded.channelHash || '').toLowerCase();
   const { targetIds, channelInfo } = pickRelayTargets(channelHash);
+  const effectiveChannelInfo = channelInfo || config.channelMap.get(channelHash) || null;
   if (targetIds.length === 0) {
     if (isWebhookDelivery) {
       log('debug', `No webhook mapping for hash ${channelHash || 'unknown'}`);
@@ -909,11 +1149,13 @@ async function handlePacket(topic, payload) {
     return;
   }
 
-  const relayMessage = formatRelayMessage(channelInfo, payloadDecoded, decoded);
+  const relayMessage = formatRelayMessage(effectiveChannelInfo, payloadDecoded, decoded);
   const messageText = relayMessage.messageText;
   if (!messageText) {
     return;
   }
+  const linkMetrics = extractLinkMetrics(decoded, payload);
+  const receiverNode = extractReceiverNode(topic, decoded, payload, observers);
 
   if (relayShowPath && relayPathWaitMs > 0) {
     if (pendingRelayTimers.has(relayKey)) {
@@ -922,10 +1164,22 @@ async function handlePacket(topic, payload) {
     const timer = setTimeout(() => {
       pendingRelayTimers.delete(relayKey);
       const latestPath = getMessagePath(relayKey);
-      const messageWithPath = applyPathSuffix(messageText, latestPath);
-      sendRelayTargets(targetIds, messageWithPath, relayMessage.senderName)
+      const messageWithPath = useDetailedBotEmbeds ? messageText : applyPathSuffix(messageText, latestPath);
+      const embedDetails = useDetailedBotEmbeds
+        ? {
+          channelLabel: relayMessage.channelLabel,
+          senderName: relayMessage.senderName,
+          senderRaw: relayMessage.senderRaw,
+          body: relayMessage.body,
+          receiverNode,
+          rssi: linkMetrics.rssi,
+          snr: linkMetrics.snr,
+          path: latestPath
+        }
+        : null;
+      sendRelayTargets(targetIds, messageWithPath, relayMessage.senderName, embedDetails)
         .then((sentMessages) => {
-          rememberSentRelay(relayKey, messageText, messageWithPath, sentMessages, Date.now());
+          rememberSentRelay(relayKey, messageText, messageWithPath, sentMessages, Date.now(), embedDetails);
         })
         .catch((err) => {
           log('warn', `Failed to send delayed relay message: ${err?.message || err}`);
@@ -935,9 +1189,21 @@ async function handlePacket(topic, payload) {
     return;
   }
 
-  const messageWithPath = applyPathSuffix(messageText, pathState.path);
-  const sentMessages = await sendRelayTargets(targetIds, messageWithPath, relayMessage.senderName);
-  rememberSentRelay(relayKey, messageText, messageWithPath, sentMessages, now);
+  const messageWithPath = useDetailedBotEmbeds ? messageText : applyPathSuffix(messageText, pathState.path);
+  const embedDetails = useDetailedBotEmbeds
+    ? {
+      channelLabel: relayMessage.channelLabel,
+      senderName: relayMessage.senderName,
+      senderRaw: relayMessage.senderRaw,
+      body: relayMessage.body,
+      receiverNode,
+      rssi: linkMetrics.rssi,
+      snr: linkMetrics.snr,
+      path: pathState.path
+    }
+    : null;
+  const sentMessages = await sendRelayTargets(targetIds, messageWithPath, relayMessage.senderName, embedDetails);
+  rememberSentRelay(relayKey, messageText, messageWithPath, sentMessages, now, embedDetails);
 }
 
 function buildMqttClient() {
@@ -1031,6 +1297,9 @@ function logRuntimeSettings() {
     } else if (isWebhookDelivery) {
       log('info', 'Path update edits disabled in webhook mode; hop collection uses RELAY_PATH_WAIT_MS before send.');
     }
+  }
+  if (isBotDelivery) {
+    log('info', `Bot message mode: ${relayBotMessageMode}`);
   }
 }
 
