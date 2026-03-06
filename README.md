@@ -121,7 +121,7 @@ Bot mode (simple):
 
 Bot mode (detailed):
 
-![Bot detailed mode example](https://sharex.yellowcooln.com/photos/firefox_J5pM5pKJ9r.png)
+![Bot detailed mode example](./docs/images/bot-detailed-example.png)
 
 ### Channels File (`CHANNELS_FILE`)
 
