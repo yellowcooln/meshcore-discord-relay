@@ -9,7 +9,7 @@ let ChannelCrypto;
 let loadConfig;
 
 try {
-  ({ ChannelCrypto } = await import('@michaelhart/meshcore-decoder'));
+  ({ ChannelCrypto } = await import('@michaelhart/meshcore-decoder/dist/crypto/channel-crypto.js'));
   ({ loadConfig } = await import('../src/config.js'));
 } catch (err) {
   dependencyError = err;

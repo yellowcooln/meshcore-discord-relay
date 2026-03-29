@@ -1,7 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import yaml from 'js-yaml';
-import { ChannelCrypto } from '@michaelhart/meshcore-decoder';
+import { ChannelCrypto } from '@michaelhart/meshcore-decoder/dist/crypto/channel-crypto.js';
 
 function env(name, fallback = '') {
   const value = process.env[name];
