@@ -1,5 +1,24 @@
 # Changelog
 
+## v1.4.1 - multibyte decoder compatibility
+
+### Added
+
+- Multibyte decoder regression tests covering:
+  - 1-byte path encoding
+  - 2-byte path encoding with multibyte UTF-8 sender/message text
+  - 3-byte path encoding with GroupText decryption
+- Local decoder compatibility wrapper in `src/meshcore-decoder.js` for relay-safe packet decoding on Node 18.
+- `package-lock.json` for reproducible installs and CI dependency setup.
+
+### Changed
+
+- Upgraded decoder dependency to `@michaelhart/meshcore-decoder@^0.3.0`.
+- Relay runtime now uses the local compatibility wrapper instead of the package top-level import.
+- Config and tests now use safe decoder submodule imports for channel hash/decryption support.
+- GroupText decoding now supports UTF-8 multibyte sender names and messages in relay processing.
+- Multi-byte repeater path decoding is now covered for 1-byte, 2-byte, and 3-byte hop formats.
+
 ## v1.4.0 - detailed bot mode
 
 ### Added

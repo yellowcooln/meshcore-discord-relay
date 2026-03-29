@@ -2,10 +2,10 @@ import fs from 'fs';
 import path from 'path';
 import mqtt from 'mqtt';
 import { Client, EmbedBuilder, GatewayIntentBits } from 'discord.js';
-import { MeshCoreDecoder, PayloadType } from '@michaelhart/meshcore-decoder';
 import dotenv from 'dotenv';
 
 import { loadConfig } from './config.js';
+import { MeshCoreDecoder, PayloadType } from './meshcore-decoder.js';
 import { extractPacketHex } from './packet-extract.js';
 
 dotenv.config();
