@@ -1,5 +1,14 @@
 # Changelog
 
+## v1.4.2 - path width display fix
+
+- Dedicated path display helper in `src/path-display.js`.
+- Regression tests for path display formatting across 1-byte, 2-byte, and 3-byte hop widths.
+- Bot path output now preserves the decoded hop width for repeater paths.
+- 2-byte networks now display 2-byte path hops instead of collapsing to 1-byte prefixes.
+- 3-byte decoded paths are now preserved in bot output as full 3-byte hop values.
+- Path formatting behavior is now shared between simple bot messages and detailed embed path fields.
+
 ## v1.4.1 - multibyte decoder compatibility
 
 ### Added

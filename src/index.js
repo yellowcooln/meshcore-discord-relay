@@ -6,6 +6,7 @@ import dotenv from 'dotenv';
 
 import { loadConfig } from './config.js';
 import { MeshCoreDecoder, PayloadType } from './meshcore-decoder.js';
+import { formatPathSuffix, normalizeRoutePath } from './path-display.js';
 import { extractPacketHex } from './packet-extract.js';
 
 dotenv.config();
@@ -358,15 +359,6 @@ function extractObserversFromPayload(payloadBuffer) {
   return [...observers];
 }
 
-function normalizeRoutePath(path) {
-  if (!Array.isArray(path)) {
-    return [];
-  }
-  return path
-    .map((hop) => String(hop || '').trim().toLowerCase())
-    .filter((hop) => /^[0-9a-f]{2}$/.test(hop));
-}
-
 function updateMessagePath(relayKey, observers, now, prefixHints = new Map(), fallbackPrefix = '', routePath = []) {
   if (!trackMessageState || !relayKey) {
     return {
@@ -422,21 +414,8 @@ function getMessagePath(relayKey) {
   return [...state.observers.values()];
 }
 
-function formatPathSuffix(observers) {
-  if (!relayShowPath || !Array.isArray(observers) || observers.length === 0) {
-    return '';
-  }
-  const shown = observers.slice(0, relayPathMaxObservers);
-  const hiddenCount = observers.length - shown.length;
-  const formatted = shown.map((hop) => {
-    const value = /^[0-9a-f]{2}$/i.test(hop) ? hop.toUpperCase() : hop;
-    return `\`${String(value).replace(/`/g, '\\`')}\``;
-  });
-  return `[${formatted.join(',')}${hiddenCount > 0 ? `,+${hiddenCount}` : ''}]`;
-}
-
 function applyPathSuffix(messageText, observers) {
-  const line = formatPathSuffix(observers);
+  const line = formatPathSuffix(observers, relayShowPath, relayPathMaxObservers);
   if (!line) {
     return messageText;
   }
@@ -604,7 +583,7 @@ function buildRelayEmbed(messageText, embedDetails = null) {
   const senderLabel = String(embedDetails.senderRaw || embedDetails.senderName || 'MeshCore').trim() || 'MeshCore';
   const bodyText = String(embedDetails.body || messageText || '').trim() || messageText;
   const path = Array.isArray(embedDetails.path) ? embedDetails.path : [];
-  const pathLine = formatPathSuffix(path);
+  const pathLine = formatPathSuffix(path, relayShowPath, relayPathMaxObservers);
   const hopsValue = path.length > 0 ? String(path.length) : 'direct';
   const receiverNode = String(embedDetails.receiverNode || '').trim() || 'unknown';
   const rssiText = Number.isFinite(embedDetails.rssi) ? `${Math.round(embedDetails.rssi)} dBm` : 'unknown';
@@ -851,8 +830,8 @@ async function editSentRelay(relayKey) {
     return;
   }
   if (isDetailedRecord) {
-    const previousPathLine = formatPathSuffix(record.embedDetails.path || []);
-    const nextPathLine = formatPathSuffix(latestPath);
+    const previousPathLine = formatPathSuffix(record.embedDetails.path || [], relayShowPath, relayPathMaxObservers);
+    const nextPathLine = formatPathSuffix(latestPath, relayShowPath, relayPathMaxObservers);
     if (previousPathLine === nextPathLine) {
       return;
     }
