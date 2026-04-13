@@ -8,6 +8,9 @@
 - 2-byte networks now display 2-byte path hops instead of collapsing to 1-byte prefixes.
 - 3-byte decoded paths are now preserved in bot output as full 3-byte hop values.
 - Path formatting behavior is now shared between simple bot messages and detailed embed path fields.
+- Upgraded `lodash` from `4.17.23` to `4.18.1`.
+- Upgraded `discord.js` from `^14.16.1` to `^14.26.2`.
+- Upgraded `undici` from `6.21.3` to `6.24.1`.
 
 ## v1.4.1 - multibyte decoder compatibility
 
