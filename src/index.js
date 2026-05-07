@@ -36,9 +36,46 @@ function log(level, message) {
   }
 }
 
+function topicMatchesPattern(topic, pattern) {
+  if (!topic || !pattern) {
+    return false;
+  }
+  const topicParts = topic.split('/');
+  const patternParts = pattern.split('/');
+
+  for (let i = 0; i < patternParts.length; i += 1) {
+    const patternPart = patternParts[i];
+
+    if (patternPart === '#') {
+      return true;
+    }
+
+    if (patternPart === '+') {
+      if (i >= topicParts.length) {
+        return false;
+      }
+      continue;
+    }
+
+    if (i >= topicParts.length || topicParts[i] !== patternPart) {
+      return false;
+    }
+  }
+
+  return topicParts.length === patternParts.length;
+}
+
+function isTopicAllowed(topic) {
+  if (topicWhitelist.length === 0) {
+    return true;
+  }
+  return topicWhitelist.some((pattern) => topicMatchesPattern(topic, pattern));
+}
+
 const relayDeliveryMode = config.discord.deliveryMode || 'bot';
 const isWebhookDelivery = relayDeliveryMode === 'webhook';
 const isBotDelivery = !isWebhookDelivery;
+const topicWhitelist = config.relay.topicWhitelist || [];
 
 if (isBotDelivery && !config.discord.token) {
   log('error', 'DISCORD_TOKEN is required.');
@@ -1071,6 +1108,11 @@ function pickRelayTargets(channelHash) {
 }
 
 async function handlePacket(topic, payload) {
+  if (!isTopicAllowed(topic)) {
+    log('debug', `Skipping message from non-whitelisted topic: ${topic}`);
+    return;
+  }
+
   const observers = [
     ...new Set([
       ...extractObserversFromTopic(topic),
@@ -1254,6 +1296,10 @@ function logRuntimeSettings() {
   } else {
     log('info', `Discord logged in as ${discordClient?.user?.tag || 'unknown'}`);
     log('info', 'Discord delivery mode: bot');
+  }
+
+  if (topicWhitelist.length > 0) {
+    log('info', `Topic whitelist enabled: ${topicWhitelist.join(', ')}`);
   }
 
   if (config.discord.routeMode === 'master') {

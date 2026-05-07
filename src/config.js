@@ -374,19 +374,20 @@ export function loadConfig() {
     qos: envInt('MQTT_QOS', 0)
   };
 
-  const relay = {
-    dedupeSeconds: envInt('RELAY_DEDUPE_SECONDS', 45),
-    logLevel: env('LOG_LEVEL', 'info').trim().toLowerCase(),
-    observerAllowlist: [...new Set(envList('MQTT_OBSERVER_ALLOWLIST').map((name) => name.toLowerCase()))],
-    showPath: envBool('RELAY_SHOW_PATH', false),
-    botMessageMode: normalizeBotMessageMode(env('RELAY_BOT_MESSAGE_MODE', 'simple')),
-    pathWaitMs: Math.max(0, envInt('RELAY_PATH_WAIT_MS', 1200)),
-    pathMaxObservers: Math.max(1, envInt('RELAY_PATH_MAX_OBSERVERS', 8)),
-    pathEditUpdates: envBool('RELAY_PATH_EDIT_UPDATES', true),
-    pathEditWindowMs: Math.max(0, envInt('RELAY_PATH_EDIT_WINDOW_MS', 15000)),
-    pathEditMinIntervalMs: Math.max(0, envInt('RELAY_PATH_EDIT_MIN_INTERVAL_MS', 3000)),
-    embedColor: normalizeEmbedColor(env('RELAY_EMBED_COLOR', '#1e2938'))
-  };
+   const relay = {
+     dedupeSeconds: envInt('RELAY_DEDUPE_SECONDS', 45),
+     logLevel: env('LOG_LEVEL', 'info').trim().toLowerCase(),
+     observerAllowlist: [...new Set(envList('MQTT_OBSERVER_ALLOWLIST').map((name) => name.toLowerCase()))],
+     topicWhitelist: envList('MQTT_TOPIC_WHITELIST'),
+     showPath: envBool('RELAY_SHOW_PATH', false),
+     botMessageMode: normalizeBotMessageMode(env('RELAY_BOT_MESSAGE_MODE', 'simple')),
+     pathWaitMs: Math.max(0, envInt('RELAY_PATH_WAIT_MS', 1200)),
+     pathMaxObservers: Math.max(1, envInt('RELAY_PATH_MAX_OBSERVERS', 8)),
+     pathEditUpdates: envBool('RELAY_PATH_EDIT_UPDATES', true),
+     pathEditWindowMs: Math.max(0, envInt('RELAY_PATH_EDIT_WINDOW_MS', 15000)),
+     pathEditMinIntervalMs: Math.max(0, envInt('RELAY_PATH_EDIT_MIN_INTERVAL_MS', 3000)),
+     embedColor: normalizeEmbedColor(env('RELAY_EMBED_COLOR', '#1e2938'))
+   };
 
   const discord = {
     token: env('DISCORD_TOKEN', '').trim(),
