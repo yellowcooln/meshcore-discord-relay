@@ -12,6 +12,14 @@ This guide walks through deploying `meshcore-discord-relay` on Linux from scratc
 
 ## 2. Clone The Repo
 
+The published Docker image is:
+
+```text
+yellowcooln/meshcore-discord-relay:latest
+```
+
+Clone the repo if you want the included examples and compose file.
+
 ```bash
 git clone https://github.com/yellowcooln/meshcore-discord-relay.git
 cd meshcore-discord-relay
@@ -114,6 +122,22 @@ Recommended startup defaults:
 
 ## 6. Start The Relay
 
+Run with Docker Compose:
+
+```bash
+docker compose up -d
+```
+
+To use the published image directly, set the service image in `docker-compose.yaml`:
+
+```yaml
+services:
+  meshcore-discord-relay:
+    image: yellowcooln/meshcore-discord-relay:latest
+```
+
+For local development, build from source:
+
 ```bash
 docker compose up -d --build
 ```
@@ -144,15 +168,22 @@ Then send a Mesh message and confirm it appears in Discord.
 
 ## 8. Update / Restart
 
-Pull latest code:
+Pull the latest published image:
+
+```bash
+docker compose pull
+```
+
+Restart:
+
+```bash
+docker compose up -d
+```
+
+If you are running from a local source checkout, pull latest code and rebuild:
 
 ```bash
 git pull origin main
-```
-
-Rebuild + restart:
-
-```bash
 docker compose up -d --build
 ```
 
