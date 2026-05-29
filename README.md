@@ -25,27 +25,25 @@ cp webhooks.yaml.example webhooks.yaml
 ```
 2) Edit `.env`, `channels.yaml`, and `webhooks.yaml` to fit your needs.
 
-3) Run with Docker Compose:
+3) Use the published image compose example:
+
+```bash
+cp docker-compose.image.yaml.example docker-compose.yaml
+```
+
+4) Run with Docker Compose:
 
 ```bash
 docker compose up -d
 ```
 
-To use the published image directly, set the service image in `docker-compose.yaml`:
-
-```yaml
-services:
-  meshcore-discord-relay:
-    image: yellowcooln/meshcore-discord-relay:latest
-```
-
-For local development, build from source:
+For local development, keep the repo `docker-compose.yaml` and build from source:
 
 ```bash
 docker compose up -d --build
 ```
 
-4) Check logs:
+5) Check logs:
 
 ```bash
 docker compose logs -f meshcore-discord-relay

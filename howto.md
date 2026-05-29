@@ -122,21 +122,19 @@ Recommended startup defaults:
 
 ## 6. Start The Relay
 
+Use the published image compose example:
+
+```bash
+cp docker-compose.image.yaml.example docker-compose.yaml
+```
+
 Run with Docker Compose:
 
 ```bash
 docker compose up -d
 ```
 
-To use the published image directly, set the service image in `docker-compose.yaml`:
-
-```yaml
-services:
-  meshcore-discord-relay:
-    image: yellowcooln/meshcore-discord-relay:latest
-```
-
-For local development, build from source:
+For local development, keep the repo `docker-compose.yaml` and build from source:
 
 ```bash
 docker compose up -d --build
