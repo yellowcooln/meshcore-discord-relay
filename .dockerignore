@@ -3,3 +3,8 @@ npm-debug.log
 .DS_Store
 .env
 channels.json
+channels.yaml
+channels.yml
+webhooks.json
+webhooks.yaml
+webhooks.yml
