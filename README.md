@@ -10,6 +10,12 @@ See [MIGRATION.md](./MIGRATION.md) for bot-to-webhook migration steps.
 
 ## Docker
 
+The published Docker image is:
+
+```text
+yellowcooln/meshcore-discord-relay:latest
+```
+
 1) Copy configs:
 
 ```bash
@@ -19,13 +25,25 @@ cp webhooks.yaml.example webhooks.yaml
 ```
 2) Edit `.env`, `channels.yaml`, and `webhooks.yaml` to fit your needs.
 
-3) Build and run:
+3) Use the published image compose example:
+
+```bash
+cp docker-compose.image.yaml.example docker-compose.yaml
+```
+
+4) Run with Docker Compose:
+
+```bash
+docker compose up -d
+```
+
+For local development, keep the repo `docker-compose.yaml` and build from source:
 
 ```bash
 docker compose up -d --build
 ```
 
-4) Check logs:
+5) Check logs:
 
 ```bash
 docker compose logs -f meshcore-discord-relay
