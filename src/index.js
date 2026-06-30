@@ -8,6 +8,7 @@ import { loadConfig } from './config.js';
 import { MeshCoreDecoder, PayloadType } from './meshcore-decoder.js';
 import { formatPathSuffix, normalizeRoutePath } from './path-display.js';
 import { extractPacketHex } from './packet-extract.js';
+import { isTopicAllowed } from './topic-match.js';
 
 dotenv.config();
 
@@ -34,42 +35,6 @@ function log(level, message) {
   } else {
     console.log(`${prefix} ${message}`);
   }
-}
-
-function topicMatchesPattern(topic, pattern) {
-  if (!topic || !pattern) {
-    return false;
-  }
-  const topicParts = topic.split('/');
-  const patternParts = pattern.split('/');
-
-  for (let i = 0; i < patternParts.length; i += 1) {
-    const patternPart = patternParts[i];
-
-    if (patternPart === '#') {
-      return true;
-    }
-
-    if (patternPart === '+') {
-      if (i >= topicParts.length) {
-        return false;
-      }
-      continue;
-    }
-
-    if (i >= topicParts.length || topicParts[i] !== patternPart) {
-      return false;
-    }
-  }
-
-  return topicParts.length === patternParts.length;
-}
-
-function isTopicAllowed(topic) {
-  if (topicWhitelist.length === 0) {
-    return true;
-  }
-  return topicWhitelist.some((pattern) => topicMatchesPattern(topic, pattern));
 }
 
 const relayDeliveryMode = config.discord.deliveryMode || 'bot';
@@ -1108,7 +1073,7 @@ function pickRelayTargets(channelHash) {
 }
 
 async function handlePacket(topic, payload) {
-  if (!isTopicAllowed(topic)) {
+  if (!isTopicAllowed(topic, topicWhitelist)) {
     log('debug', `Skipping message from non-whitelisted topic: ${topic}`);
     return;
   }
