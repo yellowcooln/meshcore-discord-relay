@@ -211,7 +211,7 @@ test('loadConfig supports JSON files and normalizes relay settings', (t) => {
     WEBHOOKS_FILE: webhooksPath,
     RELAY_BOT_MESSAGE_MODE: 'DETAILED',
     MQTT_OBSERVER_ALLOWLIST: 'DeputyDawg - Observer, YC-Observer, deputydawg - observer',
-    MQTT_TOPIC_WHITELIST: 'meshcore/DEN/#, meshcore/FNL/+',
+    MQTT_TOPIC_WHITELIST: 'meshcore/DEN/#, meshcore/FNL/+, meshcore/#/status, meshcore/DEN/#',
     RELAY_EMBED_COLOR: 'not-a-color',
     RELAY_PATH_WAIT_MS: '-100',
     RELAY_PATH_MAX_OBSERVERS: '0',

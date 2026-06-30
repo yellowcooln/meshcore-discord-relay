@@ -4,6 +4,7 @@
 
 - Added optional `MQTT_TOPIC_WHITELIST` filtering for comma-separated MQTT topic patterns.
 - Topic whitelist patterns support MQTT `+` and `#` wildcards.
+- Invalid MQTT topic whitelist filters are ignored with a config warning.
 - Messages from non-whitelisted MQTT topics are skipped before packet decoding or Discord relay.
 - Added topic whitelist parsing and matcher regression tests.
 - Upgraded transitive WebSocket dependency `ws` from `8.20.0` to `8.21.0` via Dependabot.
