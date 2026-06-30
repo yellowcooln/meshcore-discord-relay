@@ -1,5 +1,10 @@
 # Changelog
 
+## v1.4.4 - dependency updates
+
+- Upgraded transitive WebSocket dependency `ws` from `8.20.0` to `8.21.0` via Dependabot.
+- Upgraded YAML parser dependency `js-yaml` from `4.1.1` to `4.2.0` via Dependabot.
+
 ## v1.4.2 - path width display fix
 
 - Dedicated path display helper in `src/path-display.js`.
