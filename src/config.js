@@ -3,6 +3,8 @@ import path from 'path';
 import yaml from 'js-yaml';
 import { ChannelCrypto } from '@michaelhart/meshcore-decoder/dist/crypto/channel-crypto.js';
 
+import { normalizeTopicWhitelist } from './topic-match.js';
+
 function env(name, fallback = '') {
   const value = process.env[name];
   return value === undefined ? fallback : value;
@@ -378,6 +380,7 @@ export function loadConfig() {
     dedupeSeconds: envInt('RELAY_DEDUPE_SECONDS', 45),
     logLevel: env('LOG_LEVEL', 'info').trim().toLowerCase(),
     observerAllowlist: [...new Set(envList('MQTT_OBSERVER_ALLOWLIST').map((name) => name.toLowerCase()))],
+    topicWhitelist: normalizeTopicWhitelist(envList('MQTT_TOPIC_WHITELIST'), console.warn),
     showPath: envBool('RELAY_SHOW_PATH', false),
     botMessageMode: normalizeBotMessageMode(env('RELAY_BOT_MESSAGE_MODE', 'simple')),
     pathWaitMs: Math.max(0, envInt('RELAY_PATH_WAIT_MS', 1200)),

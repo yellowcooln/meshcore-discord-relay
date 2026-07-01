@@ -1,5 +1,15 @@
 # Changelog
 
+## v1.4.4 - topic whitelist and dependency updates
+
+- Added optional `MQTT_TOPIC_WHITELIST` filtering for comma-separated MQTT topic patterns.
+- Topic whitelist patterns support MQTT `+` and `#` wildcards.
+- Invalid MQTT topic whitelist filters are ignored with a config warning.
+- Messages from non-whitelisted MQTT topics are skipped before packet decoding or Discord relay.
+- Added topic whitelist parsing and matcher regression tests.
+- Upgraded transitive WebSocket dependency `ws` from `8.20.0` to `8.21.0` via Dependabot.
+- Upgraded YAML parser dependency `js-yaml` from `4.1.1` to `4.2.0` via Dependabot.
+
 ## v1.4.2 - path width display fix
 
 - Dedicated path display helper in `src/path-display.js`.

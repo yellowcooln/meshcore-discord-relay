@@ -8,6 +8,7 @@ import { loadConfig } from './config.js';
 import { MeshCoreDecoder, PayloadType } from './meshcore-decoder.js';
 import { formatPathSuffix, normalizeRoutePath } from './path-display.js';
 import { extractPacketHex } from './packet-extract.js';
+import { isTopicAllowed } from './topic-match.js';
 
 dotenv.config();
 
@@ -39,6 +40,7 @@ function log(level, message) {
 const relayDeliveryMode = config.discord.deliveryMode || 'bot';
 const isWebhookDelivery = relayDeliveryMode === 'webhook';
 const isBotDelivery = !isWebhookDelivery;
+const topicWhitelist = config.relay.topicWhitelist || [];
 
 if (isBotDelivery && !config.discord.token) {
   log('error', 'DISCORD_TOKEN is required.');
@@ -1071,6 +1073,11 @@ function pickRelayTargets(channelHash) {
 }
 
 async function handlePacket(topic, payload) {
+  if (!isTopicAllowed(topic, topicWhitelist)) {
+    log('debug', `Skipping message from non-whitelisted topic: ${topic}`);
+    return;
+  }
+
   const observers = [
     ...new Set([
       ...extractObserversFromTopic(topic),
@@ -1254,6 +1261,10 @@ function logRuntimeSettings() {
   } else {
     log('info', `Discord logged in as ${discordClient?.user?.tag || 'unknown'}`);
     log('info', 'Discord delivery mode: bot');
+  }
+
+  if (topicWhitelist.length > 0) {
+    log('info', `Topic whitelist enabled: ${topicWhitelist.join(', ')}`);
   }
 
   if (config.discord.routeMode === 'master') {

@@ -33,6 +33,7 @@ const CONFIG_ENV_KEYS = [
   'MQTT_WS_PATH',
   'MQTT_CLIENT_ID',
   'MQTT_QOS',
+  'MQTT_TOPIC_WHITELIST',
   'CHANNELS_FILE',
   'WEBHOOKS_FILE',
   'RELAY_DEDUPE_SECONDS',
@@ -210,6 +211,7 @@ test('loadConfig supports JSON files and normalizes relay settings', (t) => {
     WEBHOOKS_FILE: webhooksPath,
     RELAY_BOT_MESSAGE_MODE: 'DETAILED',
     MQTT_OBSERVER_ALLOWLIST: 'DeputyDawg - Observer, YC-Observer, deputydawg - observer',
+    MQTT_TOPIC_WHITELIST: 'meshcore/DEN/#, meshcore/FNL/+, meshcore/#/status, meshcore/DEN/#',
     RELAY_EMBED_COLOR: 'not-a-color',
     RELAY_PATH_WAIT_MS: '-100',
     RELAY_PATH_MAX_OBSERVERS: '0',
@@ -223,6 +225,10 @@ test('loadConfig supports JSON files and normalizes relay settings', (t) => {
     assert.deepEqual(config.relay.observerAllowlist, [
       'deputydawg - observer',
       'yc-observer'
+    ]);
+    assert.deepEqual(config.relay.topicWhitelist, [
+      'meshcore/DEN/#',
+      'meshcore/FNL/+'
     ]);
     assert.equal(config.relay.botMessageMode, 'detailed');
     assert.equal(config.relay.embedColor, 0x1e2938);
