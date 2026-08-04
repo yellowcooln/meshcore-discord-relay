@@ -1,5 +1,13 @@
 # Changelog
 
+## v1.4.5 - dependency and security updates
+
+- Upgraded `discord.js` from `14.26.2` to `14.27.0` and transitive `undici` from `6.24.1` to `6.28.0`.
+- Upgraded `js-yaml` from `4.2.0` to `4.3.1`, including parser security fixes.
+- Upgraded transitive `ip-address` from `10.2.0` to `10.4.0`, resolving the outstanding npm security advisories.
+- Upgraded `dotenv` from `16.4.5` to `17.4.2` while preserving quiet startup behavior.
+- Upgraded `mqtt` from `5.10.1` to `5.15.2`.
+
 ## v1.4.4 - topic whitelist and dependency updates
 
 - Added optional `MQTT_TOPIC_WHITELIST` filtering for comma-separated MQTT topic patterns.

@@ -10,7 +10,7 @@ import { formatPathSuffix, normalizeRoutePath } from './path-display.js';
 import { extractPacketHex } from './packet-extract.js';
 import { isTopicAllowed } from './topic-match.js';
 
-dotenv.config();
+dotenv.config({ quiet: true });
 
 const config = loadConfig();
 

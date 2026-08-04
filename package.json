@@ -1,6 +1,6 @@
 {
   "name": "meshcore-discord-relay",
-  "version": "0.1.1",
+  "version": "1.4.5",
   "private": true,
   "type": "module",
   "description": "Discord relay for MeshCore MQTT text chat messages",
@@ -13,9 +13,9 @@
   "dependencies": {
     "@michaelhart/meshcore-decoder": "^0.3.0",
     "discord.js": "^14.27.0",
-    "dotenv": "^16.4.5",
-    "js-yaml": "^4.3.0",
-    "mqtt": "^5.10.1"
+    "dotenv": "^17.4.2",
+    "js-yaml": "^4.3.1",
+    "mqtt": "^5.15.2"
   },
   "engines": {
     "node": ">=18"
