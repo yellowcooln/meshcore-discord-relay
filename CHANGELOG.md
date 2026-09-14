@@ -1,5 +1,9 @@
 # Changelog
 
+## v1.4.6 - YAML parser security update
+
+- Upgraded `js-yaml` from `4.3.1` to `4.3.2`, fixing excessive CPU usage from YAML merge sequences containing empty mappings (GHSA-2883-xcg3-v3hh).
+
 ## v1.4.5 - dependency and security updates
 
 - Upgraded `discord.js` from `14.26.2` to `14.27.0` and transitive `undici` from `6.24.1` to `6.28.0`.
