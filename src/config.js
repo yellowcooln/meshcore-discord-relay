@@ -1,6 +1,6 @@
 import fs from 'fs';
 import path from 'path';
-import yaml from 'js-yaml';
+import * as yaml from 'js-yaml';
 import { ChannelCrypto } from '@michaelhart/meshcore-decoder/dist/crypto/channel-crypto.js';
 
 import { normalizeTopicWhitelist } from './topic-match.js';
@@ -88,13 +88,25 @@ function resolvePath(filePath) {
   return path.join(process.cwd(), filePath);
 }
 
+// Keep YAML merge-key routing templates without YAML 1.1 boolean coercion.
+const configYamlSchema = yaml.CORE_SCHEMA.withTags(yaml.mergeTag);
+
+function parseYaml(raw) {
+  // v5 load() throws on empty/comment-only streams; retain our defaults behavior.
+  const documents = yaml.loadAll(raw, { schema: configYamlSchema });
+  if (documents.length > 1) {
+    throw new Error('Expected a single YAML document');
+  }
+  return documents[0];
+}
+
 function parseStructuredFile(resolved, label) {
   const raw = fs.readFileSync(resolved, 'utf8');
   const ext = path.extname(resolved).toLowerCase();
 
   let data;
   if (ext === '.yaml' || ext === '.yml') {
-    data = yaml.load(raw);
+    data = parseYaml(raw);
   } else if (ext === '.json') {
     data = JSON.parse(raw);
   } else {
@@ -102,7 +114,7 @@ function parseStructuredFile(resolved, label) {
     try {
       data = JSON.parse(raw);
     } catch {
-      data = yaml.load(raw);
+      data = parseYaml(raw);
     }
   }
 

@@ -1,5 +1,14 @@
 # Changelog
 
+## v1.4.6 - runtime, dependency, and CI updates
+
+- Upgraded `js-yaml` from `4.3.1` to `5.4.2`, including the fix for excessive CPU usage from YAML merge sequences containing empty mappings (GHSA-2883-xcg3-v3hh).
+- Migrated configuration loading to the js-yaml 5 API, retaining YAML merge-key routing templates and defaults for empty files. YAML now uses the YAML 1.2 core schema with merge support; YAML 1.1-specific tags such as `!!timestamp` are no longer supported.
+- Added regression tests for YAML channel/webhook routing, merge keys, empty files, and invalid or multi-document input.
+- Moved Docker and CI to Node.js 24 LTS and raised the minimum supported Node.js version to 24.
+- Updated GitHub Actions to their current major versions and made CI installs reproducible with `npm ci`.
+- Added weekly Dependabot version-update configuration for npm, Docker, and GitHub Actions targeting `dev` (activated when the configuration reaches `main`).
+
 ## v1.4.5 - dependency and security updates
 
 - Upgraded `discord.js` from `14.26.2` to `14.27.0` and transitive `undici` from `6.24.1` to `6.28.0`.
