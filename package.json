@@ -14,10 +14,10 @@
     "@michaelhart/meshcore-decoder": "^0.3.0",
     "discord.js": "^14.27.0",
     "dotenv": "^17.4.2",
-    "js-yaml": "^4.3.2",
+    "js-yaml": "^5.4.2",
     "mqtt": "^5.15.2"
   },
   "engines": {
-    "node": ">=18"
+    "node": ">=24"
   }
 }

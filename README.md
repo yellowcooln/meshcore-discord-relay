@@ -2,7 +2,7 @@
 
 Relays MeshCore GroupText chat messages from MQTT into Discord channels. It uses `@michaelhart/meshcore-decoder` to decrypt GroupText messages with channel secrets.
 
-Current release: `v1.4.0`.
+Development version: `v1.4.6`. See [GitHub releases](https://github.com/yellowcooln/meshcore-discord-relay/releases) for published releases.
 
 See [CHANGELOG.md](./CHANGELOG.md) for release history.
 See [howto.md](./howto.md) for end-to-end Linux deployment steps.
@@ -51,10 +51,10 @@ docker compose logs -f meshcore-discord-relay
 
 ## Testing
 
-Install deps and run the unit tests:
+Use Node.js 24 or newer (Node.js 24 LTS is used by Docker and CI). Install dependencies from the lockfile and run the unit tests:
 
 ```bash
-npm install
+npm ci
 npm test
 ```
 
@@ -63,6 +63,13 @@ Watch mode:
 ```bash
 npm run test:watch
 ```
+
+### Dependency updates
+
+Dependabot is configured for weekly npm, Docker, and GitHub Actions version-update
+PRs targeting `dev`. GitHub must first see `.github/dependabot.yml` on the default
+branch (`main`) before scheduled updates become active. Security alerts remain
+associated with the default branch.
 
 ### Docker Networking
 
@@ -156,7 +163,10 @@ channels:
 ```
 
 `discord_channel_id` is still supported for single-channel mappings. You can also repeat the same `secret`/`hash` in multiple entries and the relay will merge their Discord channel IDs.
-YAML and JSON use the same field names.
+YAML and JSON use the same field names. YAML uses the YAML 1.2 core schema with
+anchor/alias and merge-key (`<<`) support. Quote channel IDs and hex values to
+keep them as strings. Empty files use defaults; multi-document YAML is rejected.
+YAML 1.1-specific tags such as `!!timestamp` are not supported.
 
 ### Webhooks File (`WEBHOOKS_FILE`)
 
