@@ -1,5 +1,13 @@
 # Changelog
 
+## v1.4.7 - Dependabot dependency updates
+
+- Upgraded `mqtt` from `5.15.2` to `5.16.0` via Dependabot (#20).
+- Upgraded transitive HTTP client `undici` from `6.28.0` to `6.29.0` via Dependabot (#21).
+- Upgraded transitive `ip-address` from `10.4.0` to `10.7.2` via Dependabot (#22).
+- Upgraded `dotenv` from `17.4.2` to `18.0.4` via Dependabot (#23), retaining explicit quiet `.env` loading. Dotenv 18 removes `.env.vault` support and legacy preloading; the relay continues to use `dotenv.config()`.
+- Retained Node.js 24 LTS for Docker and CI rather than adopting the end-of-life Node.js 25 runtime proposed in #18.
+
 ## v1.4.6 - runtime, dependency, and CI updates
 
 - Upgraded `js-yaml` from `4.3.1` to `5.4.2`, including the fix for excessive CPU usage from YAML merge sequences containing empty mappings (GHSA-2883-xcg3-v3hh).
