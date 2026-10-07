@@ -10,6 +10,10 @@ updates:
     target-branch: "dev"
     schedule:
       interval: "weekly"
+    # Keep the current Node LTS major; review future LTS migrations manually.
+    ignore:
+      - dependency-name: "node"
+        update-types: ["version-update:semver-major"]
   - package-ecosystem: "github-actions"
     directory: "/"
     target-branch: "dev"
