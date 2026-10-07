@@ -4,9 +4,11 @@
 
 - Upgraded `mqtt` from `5.15.2` to `5.16.0` via Dependabot (#20).
 - Upgraded transitive HTTP client `undici` from `6.28.0` to `6.29.0` via Dependabot (#21).
-- Upgraded transitive `ip-address` from `10.4.0` to `10.7.2` via Dependabot (#22).
-- Upgraded `dotenv` from `17.4.2` to `18.0.4` via Dependabot (#23), retaining explicit quiet `.env` loading. Dotenv 18 removes `.env.vault` support and legacy preloading; the relay continues to use `dotenv.config()`.
-- Retained Node.js 24 LTS for Docker and CI rather than adopting the end-of-life Node.js 25 runtime proposed in #18.
+- Upgraded transitive `ip-address` from `10.4.0` to `10.7.3`, incorporating Dependabot (#22) and the latest patch release.
+- Upgraded `dotenv` from `17.4.2` to `18.0.6`, incorporating Dependabot (#23) and subsequent parsing/performance fixes while retaining explicit quiet `.env` loading. Dotenv 18 removes `.env.vault` support and legacy preloading; the relay continues to use `dotenv.config()`.
+- Upgraded `js-yaml` from `5.4.2` to `5.4.3`, fixing whitespace-only block scalar parsing.
+- Refreshed compatible transitive dependencies, including `ws` (`8.21.0` to `8.22.0`), `socks` (`2.8.7` to `2.8.10`), Babel runtime, Discord API types, file-signature detection, worker timer packages, and TypeScript declarations.
+- Retained Node.js 24 LTS for Docker and CI rather than adopting the end-of-life Node.js 25 runtime proposed in #18. Dependabot now ignores Docker Node major-version upgrades once this configuration reaches `main`; minor and patch updates remain enabled.
 
 ## v1.4.6 - runtime, dependency, and CI updates
 
