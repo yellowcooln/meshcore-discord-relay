@@ -1,5 +1,13 @@
 # Changelog
 
+## v1.4.8 - dependency and security updates
+
+- Updated `mqtt` to `5.16.1`, `js-yaml` to `5.5.0`, and `dotenv` to `18.0.9`, incorporating all pending Dependabot updates and the newer dotenv patch.
+- Updated transitive `undici` to `6.29.1`, fixing denial-of-service advisories in EventSource parsing and excessive HTTP content encodings.
+- Updated transitive `ip-address` to `10.7.4`, fixing excessive processing time for long IPv6 zone identifiers.
+- Refreshed compatible transitive dependencies, including Discord API types, Node.js type declarations, and `readable-stream`, without overriding upstream version constraints.
+- Retained Node.js 24 LTS, existing YAML routing-template behavior, and bot/webhook delivery configuration.
+
 ## v1.4.7 - Dependabot dependency updates
 
 - Upgraded `mqtt` from `5.15.2` to `5.16.0` via Dependabot (#20).
