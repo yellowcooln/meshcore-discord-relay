@@ -2,7 +2,8 @@
 
 ## v1.4.9 - scope display and Discord dependency update
 
-- Added optional `RELAY_SHOW_SCOPE` display for scoped MeshCore transport messages, with concise bot/webhook lines and a detailed bot Scope field; delayed sends and path edits retain the scope.
+- Added optional `RELAY_SHOW_SCOPE` display for scoped MeshCore transport messages. Simple bot/webhook output uses a blank line then compact metadata, e.g. `` `#northbridge` · [`97`] ``, without a `Scope:` prefix; either scope or path can appear alone. Detailed bot embeds retain a separate Scope field; delayed sends and path edits retain the scope.
+- Kept compact metadata within the description limit and made embedded backticks display-safe without changing scope matching.
 - Added `RELAY_SCOPE_NAMES` candidate matching using payload-specific MeshCore region transport codes, with unknown-code fallback and explicit ambiguous matches; return/home codes are not scope labels.
 - Separated scoped/unscoped dedupe and path state while preserving dedupe across return-code and transport-route changes.
 

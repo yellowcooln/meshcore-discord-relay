@@ -79,10 +79,10 @@ test('dedupe separates unscoped and different scopes but ignores home code and t
     assert.equal(h.sends.length, 3, 'global, known scope and unknown zero scope are distinct');
     assert.equal(h.sends[0].description, '**Roy B V4**: P');
     if (showScope) {
-      assert.match(h.sends[1].description, /Scope: #Test/);
-      assert.match(h.sends[2].description, /Scope: 0x0000/);
+      assert.equal(h.sends[1].description, '**Roy B V4**: P\n\n`#Test`');
+      assert.equal(h.sends[2].description, '**Roy B V4**: P\n\n`0x0000`');
     } else {
-      assert.ok(h.sends.every((embed) => !embed.description.includes('Scope:')));
+      assert.ok(h.sends.every((embed) => embed.description === '**Roy B V4**: P'));
     }
   }
 });
@@ -115,17 +115,52 @@ test('simple bot and webhook retain scope through delayed collection and bot edi
     assert.equal(h.sends.length, 0);
     await h.flush();
     assert.equal(h.sends.length, 1);
-    assert.match(h.sends[0].description, /Scope: #Test/);
-    assert.match(h.sends[0].description, /AA/);
+    assert.equal(h.sends[0].description,
+      `${delivery === 'bot' ? '**Roy B V4**: ' : ''}P\n\n\`#Test\` · [\`AA\`]`);
     await h.handle(wire(RouteType.TransportFlood, undefined, 44, 'aabb'));
     await h.flush();
     if (delivery === 'bot') {
       assert.equal(h.edits.length, 1);
-      assert.match(h.edits[0].description, /Scope: #Test/);
-      assert.match(h.edits[0].description, /AA.*BB/);
+      assert.equal(h.edits[0].description, '**Roy B V4**: P\n\n`#Test` · [`AA`,`BB`]');
     } else {
       assert.equal(h.edits.length, 0);
       assert.equal(h.sends.length, 1);
+    }
+  }
+});
+
+test('immediate simple bot and webhook sends use compact scope/path metadata', async () => {
+  for (const delivery of ['bot', 'webhook']) {
+    const h = harness({ delivery, showPath: true });
+    await h.handle(wire(RouteType.TransportFlood, undefined, 42, '97'));
+    const body = delivery === 'bot' ? '**Roy B V4**: P' : 'P';
+    assert.equal(h.sends.length, 1);
+    assert.equal(h.sends[0].description, `${body}\n\n\`#Test\` · [\`97\`]`);
+    await h.handle(wire(RouteType.TransportDirect, undefined, 99, '97aa'));
+    await h.flush();
+    assert.equal(h.sends.length, 1);
+    assert.equal(h.edits.length, delivery === 'bot' ? 1 : 0);
+    if (delivery === 'bot') assert.equal(h.edits[0].description, `${body}\n\n\`#Test\` · [\`97\`,\`AA\`]`);
+  }
+});
+
+test('path-only simple bot and webhook metadata has a blank separator, including bot edits', async () => {
+  for (const delivery of ['bot', 'webhook']) {
+    for (const wait of [0, 1200]) {
+      for (const showScope of [false, true]) {
+        const h = harness({ delivery, wait, showPath: true, showScope });
+        const route = showScope ? RouteType.Flood : RouteType.TransportFlood;
+        await h.handle(wire(route, undefined, 42, '97'));
+        if (wait) await h.flush();
+        const body = delivery === 'bot' ? '**Roy B V4**: P' : 'P';
+        assert.equal(h.sends.length, 1);
+        assert.equal(h.sends[0].description, `${body}\n\n[\`97\`]`);
+        await h.handle(wire(route, undefined, 42, '97aa'));
+        await h.flush();
+        assert.equal(h.sends.length, 1);
+        assert.equal(h.edits.length, delivery === 'bot' ? 1 : 0);
+        if (delivery === 'bot') assert.equal(h.edits[0].description, `${body}\n\n[\`97\`,\`AA\`]`);
+      }
     }
   }
 });
@@ -157,7 +192,7 @@ test('unknown and zero scopes render honestly in every delivery format; malforme
         if (delivery === 'bot' && mode === 'detailed') {
           assert.equal(h.sends[index].fields.find((field) => field.name === 'Scope')?.value, code);
         } else {
-          assert.ok(h.sends[index].description.endsWith(`Scope: ${code}`));
+          assert.ok(h.sends[index].description.endsWith(`\n\n\`${code}\``));
         }
       }
     }
@@ -169,7 +204,7 @@ test('real wire -> decrypted simple bot and webhook show optional scope', async 
     const h = harness({ delivery });
     await h.handle(wire());
     assert.equal(h.sends.length, 1);
-    assert.match(h.sends[0].description, /Scope: #Test/);
+    assert.ok(h.sends[0].description.endsWith('\n\n`#Test`'));
     assert.match(h.sends[0].description, /P/);
   }
 });

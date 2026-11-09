@@ -61,9 +61,22 @@ Optional:
 
 Set `RELAY_SHOW_SCOPE=true` to show scope only when a message uses MeshCore
 `TransportFlood` or `TransportDirect` routing. Simple bot and webhook messages
-get a `Scope: ...` line; detailed bot embeds get a **Scope** field. This is
-independent of path display and survives delayed sends and bot path-update edits.
-Unscoped messages have no scope label, and display is off by default.
+put metadata after a blank line, with inline-code scope and optional path on one
+line (no `Scope:` prefix):
+
+```text
+message body
+
+`#northbridge` · [`97`]
+```
+
+Scope alone shows only the inline-code scope; path alone shows only the existing
+path format, both after a blank line. Neither leaves the message unchanged.
+Backticks inside scope names display as `ˋ` to prevent breaking out of inline
+code; matching uses the original names. Detailed bot embeds keep a separate
+**Scope** field. Scope display is independent of path display and survives
+delayed sends and bot path-update edits. Unscoped messages have no scope label,
+and scope display is off by default.
 
 To recognize public hashtag regions, optionally configure candidates:
 

@@ -15,8 +15,10 @@ export function appendScopeSuffix(messageText, scope, pathLine = '') {
   if (!scope && !pathLine) {
     return messageText;
   }
-  const label = scope ? scope.label.replace(/([*_`~\\])/g, '\\$1').slice(0, 512) : '';
-  const suffix = [label ? `Scope: ${label}` : '', pathLine.slice(0, 1000)].filter(Boolean).map((line) => `\n${line}`).join('');
+  // Backslash escapes do not protect backticks inside Discord inline code.
+  // Use a display-only lookalike; leave matching/key material untouched.
+  const label = scope ? scope.label.replace(/`/g, 'ˋ').slice(0, 512) : '';
+  const suffix = `\n\n${[label ? `\`${label}\`` : '', pathLine.slice(0, 1000)].filter(Boolean).join(' · ')}`;
   const budget = 1900 - suffix.length;
   const body = messageText.length > budget ? `${messageText.slice(0, budget - 3)}...` : messageText;
   return `${body}${suffix}`;

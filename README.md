@@ -133,10 +133,22 @@ belongs in your channel/webhook configuration as before.
 
 The relay cannot recover a scope name from the packet alone. It checks the
 configured names against the packet's payload-specific transport code. With an
-empty list, or no matching name, it displays a code such as `Scope: 0x1234`.
-Simple bot and webhook messages get a `Scope: #Local` line; detailed bot embeds
-get a **Scope** field. Unscoped messages stay unchanged. This is display only,
-not scope-based routing or filtering, and is independent of path display.
+empty list, or no matching name, it displays an inline-code value such as `0x1234`.
+Simple bot and webhook messages put compact metadata after a blank line, with
+inline-code scope and the existing path format separated by a middle dot:
+
+```text
+message body
+
+`#northbridge` · [`97`]
+```
+
+Scope alone shows only the inline-code scope; path alone shows only the path,
+both after a blank line. With neither, the message is unchanged. There is no
+`Scope:` prefix. Backticks within scope names display as `ˋ` to keep the label
+safely inside inline code; matching still uses the original name. Detailed bot
+embeds retain a separate **Scope** field. This is display only, not scope-based
+routing or filtering, and scope display is independent of path display.
 
 After saving `.env`, recreate the Docker Compose service to reload its environment
 (a plain `docker compose restart` does not reload Compose environment settings):

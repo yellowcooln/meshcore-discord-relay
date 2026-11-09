@@ -419,20 +419,7 @@ function getMessagePath(relayKey) {
 
 function applyPathSuffix(messageText, observers, scope = null) {
   const line = formatPathSuffix(observers, relayShowPath, relayPathMaxObservers);
-  if (scope) {
-    return appendScopeSuffix(messageText, scope, line);
-  }
-  if (!line) {
-    return messageText;
-  }
-  const suffix = `\n${line}`;
-
-  if (messageText.length + suffix.length <= 1900) {
-    return `${messageText}${suffix}`;
-  }
-
-  const trimmedLength = Math.max(0, 1900 - suffix.length - 3);
-  return `${messageText.slice(0, trimmedLength)}...${suffix}`;
+  return appendScopeSuffix(messageText, scope, line);
 }
 
 function parseJsonPayload(payloadBuffer) {

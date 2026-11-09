@@ -16,9 +16,20 @@ function wire(route = RouteType.TransportFlood, code = calcTransportCodeForRegio
 test('combined scope and path metadata survive long message truncation', () => {
   const text = scope.appendScopeSuffix('x'.repeat(1900), { label: '#Test', code: 1 }, '`AA → BB`');
   assert.ok(text.length <= 1900);
-  assert.match(text, /Scope: #Test/);
-  assert.match(text, /AA → BB/);
+  assert.ok(text.endsWith('\n\n`#Test` · `AA → BB`'));
+  assert.equal(scope.appendScopeSuffix('message', { label: '#northbridge' }, '[`97`]'),
+    'message\n\n`#northbridge` · [`97`]');
+  assert.equal(scope.appendScopeSuffix('message', { label: '#Test' }), 'message\n\n`#Test`');
   assert.equal(scope.appendScopeSuffix('unchanged', null), 'unchanged');
+});
+
+test('inline scope labels cannot break out into Discord markdown', () => {
+  const label = '#a` **bold** \\ @everyone ```';
+  assert.equal(scope.appendScopeSuffix('message', { label }),
+    'message\n\n`#aˋ **bold** \\ @everyone ˋˋˋ`');
+  const long = scope.appendScopeSuffix('x'.repeat(1900), { label: '`'.repeat(600) }, 'p'.repeat(1200));
+  assert.equal(long.length, 1900);
+  assert.ok(long.endsWith(`\n\n\`${'ˋ'.repeat(512)}\` · ${'p'.repeat(1000)}`));
 });
 
 test('recognizes a configured scope from actual decoded wire payload', () => {
