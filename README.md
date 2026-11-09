@@ -104,6 +104,8 @@ associated with the default branch.
 - `RELAY_DEDUPE_SECONDS`: Dedupe window in seconds for message hash replay protection.
 - `LOG_LEVEL`: `debug`, `info`, `warn`, or `error`.
 - `MQTT_OBSERVER_ALLOWLIST`: Optional comma-separated observer names; if set, only packets seen by these observers are relayed.
+- `RELAY_SHOW_SCOPE`: Set `true` to show a scope label for scoped messages in bot and webhook output (default `false`). Unscoped messages have no scope label.
+- `RELAY_SCOPE_NAMES`: Optional comma-separated, case-sensitive public scope names to recognize, for example `"#Local,#Regional"`. Quote the value because `#` otherwise starts an `.env` comment. Unknown scopes show their packet-specific transport code instead.
 - `RELAY_SHOW_PATH`: Set `true` to append a path line to relayed Discord messages.
 - `RELAY_BOT_MESSAGE_MODE`: Bot output style: `simple` (compact sender/message embed) or `detailed` (sender title + relay detail fields).
 - `RELAY_EMBED_COLOR`: Discord embed color in hex format (`#RRGGBB`), default `#1e2938` (quote the value in `.env`, for example `"#1e2938"`).
@@ -112,6 +114,40 @@ associated with the default branch.
 - `RELAY_PATH_EDIT_WINDOW_MS`: Max window (ms) after initial send where path edits are allowed.
 - `RELAY_PATH_EDIT_MIN_INTERVAL_MS`: Minimum delay (ms) between edit API calls for the same message.
 - `RELAY_PATH_MAX_OBSERVERS`: Max hops shown in the path line.
+
+### Message Scopes
+
+Add or edit these settings in the relay's **`.env` file**, alongside your MQTT
+and Discord settings—not in `channels.yaml` or `webhooks.yaml`:
+
+```dotenv
+RELAY_SHOW_SCOPE=true
+RELAY_SCOPE_NAMES="#Local,#Regional"
+```
+
+Replace the example names with the exact scopes used by your MeshCore network.
+Names are case-sensitive; a leading `#` is added if omitted. Keep the surrounding
+quotes so dotenv reads the complete list. No separate scope key is needed for
+these public named scopes; the channel secret used to decrypt messages still
+belongs in your channel/webhook configuration as before.
+
+The relay cannot recover a scope name from the packet alone. It checks the
+configured names against the packet's payload-specific transport code. With an
+empty list, or no matching name, it displays a code such as `Scope: 0x1234`.
+Simple bot and webhook messages get a `Scope: #Local` line; detailed bot embeds
+get a **Scope** field. Unscoped messages stay unchanged. This is display only,
+not scope-based routing or filtering, and is independent of path display.
+
+After saving `.env`, recreate the Docker Compose service to reload its environment
+(a plain `docker compose restart` does not reload Compose environment settings):
+
+```bash
+docker compose up -d --force-recreate meshcore-discord-relay
+```
+
+For non-Docker installs, restart the relay process/service after editing `.env`.
+See [Optional message scopes](./howto.md#optional-message-scopes) for matching
+limits, ambiguous matches, and dedupe behavior.
 
 ### Routing Modes
 
