@@ -1,5 +1,10 @@
 # Changelog
 
+## v1.4.9 - Discord dependency update
+
+- Updated `discord.js` from `14.27.0` to `14.28.1` and its builders dependency from `1.14.1` to `1.15.0`.
+- Retained the MQTT, dotenv, YAML, and transitive security updates introduced in v1.4.8.
+
 ## v1.4.8 - dependency and security updates
 
 - Updated `mqtt` to `5.16.1`, `js-yaml` to `5.5.0`, and `dotenv` to `18.0.9`, incorporating all pending Dependabot updates and the newer dotenv patch.
