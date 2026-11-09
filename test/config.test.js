@@ -39,6 +39,8 @@ const CONFIG_ENV_KEYS = [
   'RELAY_DEDUPE_SECONDS',
   'LOG_LEVEL',
   'MQTT_OBSERVER_ALLOWLIST',
+  'RELAY_SHOW_SCOPE',
+  'RELAY_SCOPE_NAMES',
   'RELAY_SHOW_PATH',
   'RELAY_BOT_MESSAGE_MODE',
   'RELAY_EMBED_COLOR',
@@ -85,6 +87,20 @@ function skipIfMissingDeps(t) {
   t.skip(`dependencies not installed: ${dependencyError.code || dependencyError.message}`);
   return true;
 }
+
+test('scope config defaults off and bounds case-sensitive normalized candidates', () => {
+  withConfigEnv({}, () => {
+    assert.equal(loadConfig().relay.showScope, false);
+    assert.deepEqual(loadConfig().relay.scopeNames, []);
+  });
+  withConfigEnv({ RELAY_SHOW_SCOPE: 'true', RELAY_SCOPE_NAMES: ' Test, #Test, test, , #, bad\nname, ' + 'x'.repeat(65) }, () => {
+    assert.equal(loadConfig().relay.showScope, true);
+    assert.deepEqual(loadConfig().relay.scopeNames, ['#Test', '#test']);
+  });
+  withConfigEnv({ RELAY_SCOPE_NAMES: Array.from({ length: 100 }, (_, i) => `Region${i}`).join(',') }, () => {
+    assert.equal(loadConfig().relay.scopeNames.length, 64);
+  });
+});
 
 test('loadConfig merges duplicate bot channel mappings from YAML', (t) => {
   if (skipIfMissingDeps(t)) {

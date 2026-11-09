@@ -9,6 +9,7 @@ import { MeshCoreDecoder, PayloadType } from './meshcore-decoder.js';
 import { formatPathSuffix, normalizeRoutePath } from './path-display.js';
 import { extractPacketHex } from './packet-extract.js';
 import { isTopicAllowed } from './topic-match.js';
+import { resolvePacketScope, appendScopeSuffix, scopeEmbedFields } from './scope-display.js';
 
 dotenv.config({ quiet: true });
 
@@ -416,19 +417,9 @@ function getMessagePath(relayKey) {
   return [...state.observers.values()];
 }
 
-function applyPathSuffix(messageText, observers) {
+function applyPathSuffix(messageText, observers, scope = null) {
   const line = formatPathSuffix(observers, relayShowPath, relayPathMaxObservers);
-  if (!line) {
-    return messageText;
-  }
-  const suffix = `\n${line}`;
-
-  if (messageText.length + suffix.length <= 1900) {
-    return `${messageText}${suffix}`;
-  }
-
-  const trimmedLength = Math.max(0, 1900 - suffix.length - 3);
-  return `${messageText.slice(0, trimmedLength)}...${suffix}`;
+  return appendScopeSuffix(messageText, scope, line);
 }
 
 function parseJsonPayload(payloadBuffer) {
@@ -597,7 +588,7 @@ function buildRelayEmbed(messageText, embedDetails = null) {
     .setDescription(trimField(bodyText, 4096))
     .setTimestamp(new Date());
 
-  const fields = [];
+  const fields = [...scopeEmbedFields(embedDetails.scope)];
   if (config.discord.routeMode === 'master' && channelLabel) {
     fields.push({ name: 'Channel', value: trimField(channelLabel), inline: true });
   }
@@ -784,7 +775,7 @@ function clearSentRelayRecord(relayKey) {
   sentRelayCache.delete(relayKey);
 }
 
-function rememberSentRelay(relayKey, baseMessageText, renderedMessageText, sentMessages, now, embedDetails = null) {
+function rememberSentRelay(relayKey, baseMessageText, renderedMessageText, sentMessages, now, embedDetails = null, scope = null) {
   if (!relayPathEditUpdates || !relayShowPath || !relayKey || !Array.isArray(sentMessages) || sentMessages.length === 0) {
     return;
   }
@@ -792,6 +783,7 @@ function rememberSentRelay(relayKey, baseMessageText, renderedMessageText, sentM
   clearSentRelayRecord(relayKey);
   sentRelayCache.set(relayKey, {
     baseMessageText,
+    scope,
     renderedMessageText,
     embedDetails,
     sentMessages,
@@ -827,7 +819,7 @@ async function editSentRelay(relayKey) {
   const isDetailedRecord = Boolean(record.embedDetails && useDetailedBotEmbeds);
   const nextRenderedMessageText = isDetailedRecord
     ? record.baseMessageText
-    : applyPathSuffix(record.baseMessageText, latestPath);
+    : applyPathSuffix(record.baseMessageText, latestPath, record.scope);
   if (!isDetailedRecord && (!nextRenderedMessageText || nextRenderedMessageText === record.renderedMessageText)) {
     return;
   }
@@ -1122,7 +1114,11 @@ async function handlePacket(topic, payload) {
     return;
   }
 
-  const relayKey = `${decoded.messageHash || payloadDecoded.decrypted.timestamp || 'no-hash'}:${channelHash}`;
+  // Transport code 0 is payload-specific; return/home code is not scope identity.
+  // Keep scoped/global copies and their observer/path/edit caches separate.
+  const packetScope = resolvePacketScope(decoded, config.relay.showScope ? config.relay.scopeNames : []);
+  const scopeIdentity = packetScope ? `scope:${packetScope.code}` : 'unscoped';
+  const relayKey = `${decoded.messageHash || payloadDecoded.decrypted.timestamp || 'no-hash'}:${channelHash}:${scopeIdentity}`;
   const now = Date.now();
   const pathState = updateMessagePath(relayKey, observers, now, prefixHints, topicPrefix, decoded.path);
   if (observerAllowlist.size > 0 && !pathState.allowedSeen) {
@@ -1136,6 +1132,7 @@ async function handlePacket(topic, payload) {
   }
 
   const relayMessage = formatRelayMessage(effectiveChannelInfo, payloadDecoded, decoded);
+  const displayedScope = config.relay.showScope ? packetScope : null;
   const messageText = relayMessage.messageText;
   if (!messageText) {
     return;
@@ -1150,9 +1147,10 @@ async function handlePacket(topic, payload) {
     const timer = setTimeout(() => {
       pendingRelayTimers.delete(relayKey);
       const latestPath = getMessagePath(relayKey);
-      const messageWithPath = useDetailedBotEmbeds ? messageText : applyPathSuffix(messageText, latestPath);
+      const messageWithPath = useDetailedBotEmbeds ? messageText : applyPathSuffix(messageText, latestPath, displayedScope);
       const embedDetails = useDetailedBotEmbeds
         ? {
+          scope: displayedScope,
           channelLabel: relayMessage.channelLabel,
           senderName: relayMessage.senderName,
           senderRaw: relayMessage.senderRaw,
@@ -1165,7 +1163,7 @@ async function handlePacket(topic, payload) {
         : null;
       sendRelayTargets(targetIds, messageWithPath, relayMessage.senderName, embedDetails)
         .then((sentMessages) => {
-          rememberSentRelay(relayKey, messageText, messageWithPath, sentMessages, Date.now(), embedDetails);
+          rememberSentRelay(relayKey, messageText, messageWithPath, sentMessages, Date.now(), embedDetails, displayedScope);
         })
         .catch((err) => {
           log('warn', `Failed to send delayed relay message: ${err?.message || err}`);
@@ -1175,9 +1173,10 @@ async function handlePacket(topic, payload) {
     return;
   }
 
-  const messageWithPath = useDetailedBotEmbeds ? messageText : applyPathSuffix(messageText, pathState.path);
+  const messageWithPath = useDetailedBotEmbeds ? messageText : applyPathSuffix(messageText, pathState.path, displayedScope);
   const embedDetails = useDetailedBotEmbeds
     ? {
+      scope: displayedScope,
       channelLabel: relayMessage.channelLabel,
       senderName: relayMessage.senderName,
       senderRaw: relayMessage.senderRaw,
@@ -1189,7 +1188,7 @@ async function handlePacket(topic, payload) {
     }
     : null;
   const sentMessages = await sendRelayTargets(targetIds, messageWithPath, relayMessage.senderName, embedDetails);
-  rememberSentRelay(relayKey, messageText, messageWithPath, sentMessages, now, embedDetails);
+  rememberSentRelay(relayKey, messageText, messageWithPath, sentMessages, now, embedDetails, displayedScope);
 }
 
 function buildMqttClient() {
