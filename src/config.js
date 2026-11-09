@@ -4,6 +4,7 @@ import * as yaml from 'js-yaml';
 import { ChannelCrypto } from '@michaelhart/meshcore-decoder/dist/crypto/channel-crypto.js';
 
 import { normalizeTopicWhitelist } from './topic-match.js';
+import { normalizeScopeNames } from './scope-display.js';
 
 function env(name, fallback = '') {
   const value = process.env[name];
@@ -393,6 +394,8 @@ export function loadConfig() {
     logLevel: env('LOG_LEVEL', 'info').trim().toLowerCase(),
     observerAllowlist: [...new Set(envList('MQTT_OBSERVER_ALLOWLIST').map((name) => name.toLowerCase()))],
     topicWhitelist: normalizeTopicWhitelist(envList('MQTT_TOPIC_WHITELIST'), console.warn),
+    showScope: envBool('RELAY_SHOW_SCOPE', false),
+    scopeNames: normalizeScopeNames(env('RELAY_SCOPE_NAMES')),
     showPath: envBool('RELAY_SHOW_PATH', false),
     botMessageMode: normalizeBotMessageMode(env('RELAY_BOT_MESSAGE_MODE', 'simple')),
     pathWaitMs: Math.max(0, envInt('RELAY_PATH_WAIT_MS', 1200)),

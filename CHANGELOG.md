@@ -1,6 +1,10 @@
 # Changelog
 
-## v1.4.9 - Discord dependency update
+## v1.4.9 - scope display and Discord dependency update
+
+- Added optional `RELAY_SHOW_SCOPE` display for scoped MeshCore transport messages, with concise bot/webhook lines and a detailed bot Scope field; delayed sends and path edits retain the scope.
+- Added `RELAY_SCOPE_NAMES` candidate matching using payload-specific MeshCore region transport codes, with unknown-code fallback and explicit ambiguous matches; return/home codes are not scope labels.
+- Separated scoped/unscoped dedupe and path state while preserving dedupe across return-code and transport-route changes.
 
 - Updated `discord.js` from `14.27.0` to `14.28.1` and its builders dependency from `1.14.1` to `1.15.0`.
 - Retained the MQTT, dotenv, YAML, and transitive security updates introduced in v1.4.8.

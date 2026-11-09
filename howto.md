@@ -57,6 +57,40 @@ Optional:
 - `RELAY_EMBED_COLOR="#1e2938"` for embed color
 - `MQTT_OBSERVER_ALLOWLIST=name1,name2` to require observer match
 
+### Optional message scopes
+
+Set `RELAY_SHOW_SCOPE=true` to show scope only when a message uses MeshCore
+`TransportFlood` or `TransportDirect` routing. Simple bot and webhook messages
+get a `Scope: ...` line; detailed bot embeds get a **Scope** field. This is
+independent of path display and survives delayed sends and bot path-update edits.
+Unscoped messages have no scope label, and display is off by default.
+
+To recognize public hashtag regions, optionally configure candidates:
+
+```dotenv
+RELAY_SHOW_SCOPE=true
+RELAY_SCOPE_NAMES="Test,#Local"
+```
+
+Names are trimmed, get a leading `#` if missing, and are deduplicated without
+changing case: `#Local` and `#local` are different key material. Up to 64 unique
+names are kept, each at most 64 UTF-8 bytes including `#`; empty, bare `#`,
+control-containing and overlong entries are ignored. Quote `.env` values
+containing `#` so dotenv does not treat them as comments.
+
+The relay checks each candidate using the packet's payload type and raw encrypted
+payload with the decoder's MeshCore region-transport algorithm. A transport code
+is **payload-specific**, not a fixed scope ID and not a reversible name. An
+unmatched/private scope is shown as e.g. `0x1234` (including `0x0000`), and multiple
+matching candidates are explicitly marked `ambiguous`. These are 16-bit matches,
+not proof of a unique scope name or sender authentication. Only the first
+transport code is the scope; the second return/home code is never shown as scope.
+
+Dedupe and path tracking distinguish unscoped messages from different scope
+codes, even with display off. Copies with the same scope code still dedupe across
+transport flood/direct and return/home-code changes. No scope-based routing or
+filtering is added.
+
 ## 5. Choose Delivery Mode
 
 Pick exactly one mode below. Keep the shared settings from Step 4, then apply either Option A or Option B.
