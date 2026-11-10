@@ -1,249 +1,177 @@
-# MeshCore Discord Relay
+<h1 align="center">MeshCore Discord Relay</h1>
 
-Relays MeshCore GroupText chat messages from MQTT into Discord channels. It uses `@michaelhart/meshcore-decoder` to decrypt GroupText messages with channel secrets.
+<p align="center">
+  Bring MeshCore channel messages into Discord.<br />
+  Self-hosted MQTT relay with bot and webhook delivery.
+</p>
 
-Development version: `v1.4.9`. See [GitHub releases](https://github.com/yellowcooln/meshcore-discord-relay/releases) for published releases.
+<p align="center">
+  <a href="https://github.com/yellowcooln/meshcore-discord-relay/releases"><img src="https://img.shields.io/github/v/release/yellowcooln/meshcore-discord-relay?style=flat&amp;color=0f766e" alt="Latest release" /></a>
+  <a href="https://github.com/yellowcooln/meshcore-discord-relay/actions/workflows/tests.yml?query=branch%3Amain"><img src="https://img.shields.io/github/actions/workflow/status/yellowcooln/meshcore-discord-relay/tests.yml?branch=main&amp;style=flat&amp;label=tests" alt="Tests on main" /></a>
+  <a href="https://github.com/yellowcooln/meshcore-discord-relay/actions/workflows/docker-publish.yml?query=branch%3Amain"><img src="https://img.shields.io/github/actions/workflow/status/yellowcooln/meshcore-discord-relay/docker-publish.yml?branch=main&amp;style=flat&amp;label=docker%20build" alt="Docker build on main" /></a>
+  <a href="https://hub.docker.com/r/yellowcooln/meshcore-discord-relay"><img src="https://img.shields.io/docker/pulls/yellowcooln/meshcore-discord-relay?style=flat&amp;logo=docker&amp;logoColor=white" alt="Docker pulls" /></a>
+</p>
 
-See [CHANGELOG.md](./CHANGELOG.md) for release history.
-See [howto.md](./howto.md) for end-to-end Linux deployment steps.
-See [MIGRATION.md](./MIGRATION.md) for bot-to-webhook migration steps.
+<p align="center">
+  <a href="#quick-start">Quick start</a> &middot;
+  <a href="./howto.md">Documentation</a> &middot;
+  <a href="#configuration">Configuration</a> &middot;
+  <a href="./CHANGELOG.md">Changelog</a> &middot;
+  <a href="https://github.com/yellowcooln/meshcore-discord-relay/issues">Report an issue</a>
+</p>
 
-## Docker
+![Detailed Discord bot message showing the sender, message, receiver, signal measurements, and path](./docs/images/bot-detailed-example.png)
 
-The published Docker image is:
+<p align="center"><em>Detailed bot output. Simple bot embeds and per-sender webhook messages are also available.</em></p>
 
-```text
-yellowcooln/meshcore-discord-relay:latest
-```
+## Features
 
-1) Copy configs:
+- Relay MeshCore GroupText messages from MQTT into Discord using `@michaelhart/meshcore-decoder` and your channel secrets.
+- Choose a Discord bot or webhooks with per-sender names and avatars.
+- Route each MeshCore channel to its own Discord destinations, or send everything to one master destination.
+- Filter by observer or MQTT topic and deduplicate repeated messages.
+- Show optional paths and public scope labels; bot messages can update as additional hops arrive.
+- Run the published Docker image or build from source, with YAML or JSON configuration.
+
+**This is a one-way relay: MeshCore → MQTT → Discord.** It does not send Discord messages back over the mesh. Only messages with a matching channel decryption secret can be relayed.
+
+## Quick start
+
+### Run the prebuilt Docker image
+
+The published image is [`yellowcooln/meshcore-discord-relay:latest`](https://hub.docker.com/r/yellowcooln/meshcore-discord-relay). No local build is required.
+
+You need Docker with the Compose plugin, MQTT subscriber access, your MeshCore channel secret, and either a Discord bot token or a Discord webhook URL.
+
+Download the configuration examples into a new directory:
 
 ```bash
+mkdir meshcore-discord-relay
+cd meshcore-discord-relay
+curl -fsSL https://raw.githubusercontent.com/yellowcooln/meshcore-discord-relay/main/.env.example -o .env
+curl -fsSL https://raw.githubusercontent.com/yellowcooln/meshcore-discord-relay/main/channels.yaml.example -o channels.yaml
+curl -fsSL https://raw.githubusercontent.com/yellowcooln/meshcore-discord-relay/main/webhooks.yaml.example -o webhooks.yaml
+curl -fsSL https://raw.githubusercontent.com/yellowcooln/meshcore-discord-relay/main/docker-compose.image.yaml.example -o docker-compose.yaml
+```
+
+Before starting:
+
+1. Edit `.env` with your MQTT host, port, transport, credentials, and topic.
+2. Choose `DISCORD_DELIVERY_MODE=bot` or `webhook` using the table below.
+3. Configure the channel secret and Discord destinations in the appropriate YAML file. Keep both files present because the supplied Compose example mounts both.
+
+| Delivery | Configure | Output |
+| --- | --- | --- |
+| `bot` | Set `DISCORD_TOKEN` in `.env`; put channel secrets and Discord channel IDs in `channels.yaml`. | One bot identity, with simple or detailed embeds and optional later path edits. |
+| `webhook` | Set channel secrets and webhook URLs in `webhooks.yaml`; no bot token needed. | Per-sender display names and robot avatars, without later path edits. |
+
+For bot setup, file examples, and routing choices, follow the [deployment guide](./howto.md#5-choose-delivery-mode). Switching an existing bot installation? See [MIGRATION.md](./MIGRATION.md).
+
+**Docker networking:** `MQTT_HOST=localhost` points at the relay container, not your host. The supplied Compose file maps `host.docker.internal` to the Linux host gateway. Use that for a reachable host broker, or use the broker's service name on a shared Docker network. Leave `MQTT_TLS_INSECURE=false` for normal use.
+
+Pull the image, start the relay, and inspect its logs:
+
+```bash
+docker compose pull
+docker compose up -d
+docker compose logs --tail=100 -f meshcore-discord-relay
+```
+
+There is no web UI or published HTTP port. Check for the Discord delivery and MQTT connection messages in the logs. When you are ready to test, send a message on the configured MeshCore channel and check its Discord destination. The [verification guide](./howto.md#7-verify-it-works) explains what to look for.
+
+### Build from source instead
+
+```bash
+git clone https://github.com/yellowcooln/meshcore-discord-relay.git
+cd meshcore-discord-relay
 cp .env.example .env
 cp channels.yaml.example channels.yaml
 cp webhooks.yaml.example webhooks.yaml
 ```
-2) Edit `.env`, `channels.yaml`, and `webhooks.yaml` to fit your needs.
 
-3) Use the published image compose example:
-
-```bash
-cp docker-compose.image.yaml.example docker-compose.yaml
-```
-
-4) Run with Docker Compose:
-
-```bash
-docker compose up -d
-```
-
-For local development, keep the repo `docker-compose.yaml` and build from source:
+Configure the files as above, keep the repository's build-based `docker-compose.yaml`, then run:
 
 ```bash
 docker compose up -d --build
 ```
 
-5) Check logs:
+## Configuration
 
-```bash
-docker compose logs -f meshcore-discord-relay
+See [`.env.example`](./.env.example) for all settings and the [deployment guide](./howto.md) for detailed examples, optional features, and troubleshooting.
+
+| Setting | Purpose |
+| --- | --- |
+| `MQTT_HOST`, `MQTT_PORT`, `MQTT_TRANSPORT` | Broker address and TCP/WebSocket transport. |
+| `MQTT_USERNAME`, `MQTT_PASSWORD` | Subscriber credentials, when required. |
+| `MQTT_TOPIC` | Broker topic subscription. |
+| `MQTT_TLS`, `MQTT_CA_CERT`, `MQTT_WS_PATH` | TLS and WebSocket connection settings. |
+| `DISCORD_DELIVERY_MODE`, `DISCORD_TOKEN` | Bot/webhook selection and bot authentication. |
+| `DISCORD_ROUTE_MODE` | `per_channel` mappings or a single `master` destination. |
+| `DISCORD_MASTER_CHANNEL_ID`, `DISCORD_DEFAULT_CHANNEL_ID` | Master/fallback destinations for bot delivery. |
+| `CHANNELS_FILE`, `WEBHOOKS_FILE` | Channel decryption and destination mappings. |
+| `MQTT_OBSERVER_ALLOWLIST`, `MQTT_TOPIC_WHITELIST` | Optional observer and topic filters. |
+| `RELAY_DEDUPE_SECONDS` | Message deduplication window; default 45 seconds. |
+| `RELAY_BOT_MESSAGE_MODE` | `simple` or `detailed` bot embeds. |
+| `RELAY_SHOW_PATH`, `RELAY_PATH_WAIT_MS` | Optional path display and collection delay. |
+| `RELAY_SHOW_SCOPE`, `RELAY_SCOPE_NAMES` | Optional scope display and public-name candidates. |
+
+Scope display is off by default and does not change routing or filtering. Put settings in `.env`, not the channel files, and quote names containing `#`:
+
+```env
+RELAY_SHOW_SCOPE=true
+RELAY_SCOPE_NAMES="#Local,#Regional"
 ```
 
-## Testing
+Unknown scopes display a packet-specific code; multiple name matches are marked ambiguous. See [Optional message scopes](./howto.md#optional-message-scopes) for limitations.
 
-Use Node.js 24 or newer (Node.js 24 LTS is used by Docker and CI). Install dependencies from the lockfile and run the unit tests:
+Keep bot tokens, webhook URLs, MQTT passwords, and private channel secrets out of Git and shared logs. The relay posts decrypted messages into Discord, so only configure channels you intend to share there.
+
+## Message examples
+
+### Webhook delivery
+
+Each sender uses its own display name and robot avatar.
+
+![Webhook messages with per-sender names and avatars](./docs/images/webhook-example.png)
+
+### Simple bot delivery
+
+A compact sender/message embed posted by one bot identity.
+
+![Simple bot messages](./docs/images/bot-example.png)
+
+Detailed bot delivery is shown at the top of this README. It adds receiver, RSSI, SNR, hops, and path fields; the channel field appears in master routing mode.
+
+## Updates
+
+For an installation using the prebuilt image:
+
+```bash
+docker compose pull meshcore-discord-relay
+docker compose up -d --no-build meshcore-discord-relay
+```
+
+After editing `.env`, recreate the service with the intended image already pulled:
+
+```bash
+docker compose up -d --no-build --pull never --force-recreate meshcore-discord-relay
+```
+
+A plain `docker compose restart` does not reload Compose environment-file values. Preserve `.env` and your channel/webhook files when updating. See the [update guide](./howto.md#8-updates-and-configuration-changes) for source builds.
+
+## Development
+
+Use Node.js 24 or newer. Install the locked dependencies and run the tests:
 
 ```bash
 npm ci
 npm test
 ```
 
-Watch mode:
+Use `npm run test:watch` for watch mode. Build local source changes with `docker compose up -d --build`.
 
-```bash
-npm run test:watch
-```
+## About these projects
 
-### Dependency updates
+I build these projects with the help of AI when I see a need for software I want to use myself. The goal is to make something useful, run it on my own systems, and share it with anyone else who might find it helpful.
 
-Dependabot is configured for weekly npm, Docker, and GitHub Actions version-update
-PRs targeting `dev`. GitHub must first see `.github/dependabot.yml` on the default
-branch (`main`) before scheduled updates become active. Security alerts remain
-associated with the default branch.
-
-### Docker Networking
-
-- Compose now creates a dedicated bridge network named `meshcore-relay`.
-- The relay container also gets `host.docker.internal` mapped to the Linux host gateway.
-- If Mosquitto is on the same host (not in Docker), set `MQTT_HOST=host.docker.internal`.
-- If Mosquitto is in Docker, attach it to `meshcore-relay` and set `MQTT_HOST` to that container/service name.
-
-## Configuration
-
-### .env Breakdown
-
-- `DISCORD_DELIVERY_MODE`: Relay output mode. Use `bot` or `webhook`.
-- `DISCORD_TOKEN`: Discord bot token (required only when `DISCORD_DELIVERY_MODE=bot`).
-- `DISCORD_ROUTE_MODE`: Discord routing mode. Use `per_channel` (default) to route by Mesh channel mapping, or `master` to send all relayed messages to one channel.
-- `DISCORD_MASTER_CHANNEL_ID`: Master Discord channel used when `DISCORD_ROUTE_MODE=master` (falls back to `DISCORD_DEFAULT_CHANNEL_ID` if unset).
-- `DISCORD_DEFAULT_CHANNEL_ID`: Fallback Discord channel if a Mesh channel hash is not mapped in `CHANNELS_FILE` (also fallback for master mode).
-- `MQTT_HOST`: MQTT broker host (for same-host Linux Mosquitto from Docker, use `host.docker.internal`).
-- `MQTT_PORT`: MQTT broker port.
-- `MQTT_USERNAME`: MQTT username (optional).
-- `MQTT_PASSWORD`: MQTT password (optional).
-- `MQTT_TOPIC`: MQTT topic subscription (for example `meshcore/#` or `meshcore/BOS/#`).
-- `MQTT_TLS`: Set `true` for TLS (`mqtts`/`wss`), else `false`.
-- `MQTT_TLS_INSECURE`: Set `true` to skip TLS cert verification (not recommended outside testing).
-- `MQTT_CA_CERT`: Optional CA certificate path for TLS validation.
-- `MQTT_TRANSPORT`: `tcp` or `websockets`.
-- `MQTT_WS_PATH`: WebSocket path when using `websockets` transport (usually `/mqtt`).
-- `MQTT_CLIENT_ID`: Optional MQTT client ID.
-- `MQTT_QOS`: MQTT QoS level (`0`, `1`, or `2`; default `0`).
-- `CHANNELS_FILE`: Channel routing file path (supports `.json`, `.yaml`, `.yml`; default `channels.yaml`).
-- `WEBHOOKS_FILE`: Webhook routing file path (supports `.json`, `.yaml`, `.yml`; default `webhooks.yaml`).
-- `RELAY_DEDUPE_SECONDS`: Dedupe window in seconds for message hash replay protection.
-- `LOG_LEVEL`: `debug`, `info`, `warn`, or `error`.
-- `MQTT_OBSERVER_ALLOWLIST`: Optional comma-separated observer names; if set, only packets seen by these observers are relayed.
-- `RELAY_SHOW_SCOPE`: Set `true` to show a scope label for scoped messages in bot and webhook output (default `false`). Unscoped messages have no scope label.
-- `RELAY_SCOPE_NAMES`: Optional comma-separated, case-sensitive public scope names to recognize, for example `"#Local,#Regional"`. Quote the value because `#` otherwise starts an `.env` comment. Unknown scopes show their packet-specific transport code instead.
-- `RELAY_SHOW_PATH`: Set `true` to append a path line to relayed Discord messages.
-- `RELAY_BOT_MESSAGE_MODE`: Bot output style: `simple` (compact sender/message embed) or `detailed` (sender title + relay detail fields).
-- `RELAY_EMBED_COLOR`: Discord embed color in hex format (`#RRGGBB`), default `#1e2938` (quote the value in `.env`, for example `"#1e2938"`).
-- `RELAY_PATH_WAIT_MS`: Milliseconds to wait before sending when path display is enabled (collects additional hops for the same message).
-- `RELAY_PATH_EDIT_UPDATES`: If `true`, bot mode can edit sent Discord messages when additional hops are heard.
-- `RELAY_PATH_EDIT_WINDOW_MS`: Max window (ms) after initial send where path edits are allowed.
-- `RELAY_PATH_EDIT_MIN_INTERVAL_MS`: Minimum delay (ms) between edit API calls for the same message.
-- `RELAY_PATH_MAX_OBSERVERS`: Max hops shown in the path line.
-
-### Message Scopes
-
-Add or edit these settings in the relay's **`.env` file**, alongside your MQTT
-and Discord settings—not in `channels.yaml` or `webhooks.yaml`:
-
-```dotenv
-RELAY_SHOW_SCOPE=true
-RELAY_SCOPE_NAMES="#Local,#Regional"
-```
-
-Replace the example names with the exact scopes used by your MeshCore network.
-Names are case-sensitive; a leading `#` is added if omitted. Keep the surrounding
-quotes so dotenv reads the complete list. No separate scope key is needed for
-these public named scopes; the channel secret used to decrypt messages still
-belongs in your channel/webhook configuration as before.
-
-The relay cannot recover a scope name from the packet alone. It checks the
-configured names against the packet's payload-specific transport code. With an
-empty list, or no matching name, it displays an inline-code value such as `0x1234`.
-Simple bot and webhook messages put compact metadata after a blank line, with
-inline-code scope and the existing path format separated by a middle dot:
-
-```text
-message body
-
-`#northbridge` · [`97`]
-```
-
-Scope alone shows only the inline-code scope; path alone shows only the path,
-both after a blank line. With neither, the message is unchanged. There is no
-`Scope:` prefix. Backticks within scope names display as `ˋ` to keep the label
-safely inside inline code; matching still uses the original name. Detailed bot
-embeds retain a separate **Scope** field. This is display only, not scope-based
-routing or filtering, and scope display is independent of path display.
-
-After saving `.env`, recreate the Docker Compose service to reload its environment
-(a plain `docker compose restart` does not reload Compose environment settings):
-
-```bash
-docker compose up -d --force-recreate meshcore-discord-relay
-```
-
-For non-Docker installs, restart the relay process/service after editing `.env`.
-See [Optional message scopes](./howto.md#optional-message-scopes) for matching
-limits, ambiguous matches, and dedupe behavior.
-
-### Routing Modes
-
-`DISCORD_ROUTE_MODE=per_channel` (default)
-- `bot` delivery routes by Mesh channel hash using `CHANNELS_FILE`.
-- `webhook` delivery routes by Mesh channel hash using `WEBHOOKS_FILE`.
-- Uses fallback target only when a hash is not mapped:
-- bot fallback: `DISCORD_DEFAULT_CHANNEL_ID`
-- webhook fallback: `default_webhook_url` in `WEBHOOKS_FILE`
-
-`DISCORD_ROUTE_MODE=master`
-- `bot` delivery sends all relayed messages to one channel (`DISCORD_MASTER_CHANNEL_ID`, fallback `DISCORD_DEFAULT_CHANNEL_ID`).
-- `webhook` delivery sends all relayed messages to `default_webhook_url` from `WEBHOOKS_FILE`.
-- `CHANNELS_FILE` is still used for Mesh channel key/decryption lookup.
-
-### Message Format
-
-- `bot` delivery with `RELAY_BOT_MESSAGE_MODE=simple`: embed description `**NodeName**: message`
-- `bot` delivery with `RELAY_BOT_MESSAGE_MODE=detailed`: embed title is sender name, description is message body, and fields include `Receiver Node`, `RSSI`, `SNR`, `Hops`, and `Path`; `Channel` is shown only in `DISCORD_ROUTE_MODE=master`
-- `webhook` delivery format: webhook `username` is sender name; embed description is the message body
-- If `RELAY_SHOW_PATH=true`, a second line is appended: ``[`22`,`97`,`25`,`01`]``
-
-#### Example Output
-
-Webhook mode:
-
-![Webhook mode example](./docs/images/webhook-example.png)
-
-Bot mode (simple):
-
-![Bot simple mode example](./docs/images/bot-example.png)
-
-Bot mode (detailed):
-
-![Bot detailed mode example](./docs/images/bot-detailed-example.png)
-
-### Channels File (`CHANNELS_FILE`)
-
-Each entry provides a MeshCore channel secret (hex) and one or more Discord channel IDs to post into. The relay derives the channel hash from the secret, decrypts the GroupText payload, and routes based on that hash.
-
-```yaml
-default_channel_id: "123456789012345678"
-channels:
-  - name: "public"
-    secret: "8b3387e9c5cdea6ac9e5edbaa115cd72"
-    discord_channel_ids:
-      - "123456789012345678"
-      - "345678901234567890"
-```
-
-`discord_channel_id` is still supported for single-channel mappings. You can also repeat the same `secret`/`hash` in multiple entries and the relay will merge their Discord channel IDs.
-YAML and JSON use the same field names. YAML uses the YAML 1.2 core schema with
-anchor/alias and merge-key (`<<`) support. Quote channel IDs and hex values to
-keep them as strings. Empty files use defaults; multi-document YAML is rejected.
-YAML 1.1-specific tags such as `!!timestamp` are not supported.
-
-### Webhooks File (`WEBHOOKS_FILE`)
-
-Use this file for webhook routing in webhook delivery mode.
-
-```yaml
-default_webhook_url: ""
-channels:
-  - name: "public"
-    secret: "8b3387e9c5cdea6ac9e5edbaa115cd72"
-    webhook_url: "https://discord.com/api/webhooks/123456789012345678/replace-with-token"
-```
-
-Both YAML and JSON are supported for webhook files.
-
-## Notes
-
-- Only GroupText payloads are relayed (MeshCore text chat). If a matching channel secret is not provided, messages are skipped.
-- Delivery supports `bot` and `webhook` modes.
-- Routing supports either per-channel mapping (`DISCORD_ROUTE_MODE=per_channel`) or a single master target (`DISCORD_ROUTE_MODE=master`).
-- Dedupe is handled by message hash for 45 seconds by default (`RELAY_DEDUPE_SECONDS`).
-- Observer filtering reads names from MQTT topic metadata and JSON payload fields like `origin`/`observer`.
-- Observer allowlist matching is case-insensitive and normalization-based. Example: `MQTT_OBSERVER_ALLOWLIST=DeputyDawg,YC-Observer` will match `DeputyDawg - Observer`.
-- With an observer allowlist enabled, messages are held until at least one whitelisted observer sees that message.
-- Path collection still includes non-whitelisted observers for the same message, so full hop history can be shown.
-- When `RELAY_SHOW_PATH=true`, relayed messages include a bracketed path line with each hop shown as inline code (for example ``[`22`,`97`,`25`,`01`]``). Repeater path bytes are preferred, with observer-derived fallback if packet path is unavailable.
-- `RELAY_PATH_WAIT_MS` trades latency for better path completeness. Larger values capture more observer hops before posting.
-- With `RELAY_PATH_EDIT_UPDATES=true`, bot-mode messages can be edited after posting when new repeats are heard, throttled by `RELAY_PATH_EDIT_MIN_INTERVAL_MS` and bounded by `RELAY_PATH_EDIT_WINDOW_MS`.
-- Detailed bot mode (`RELAY_BOT_MESSAGE_MODE=detailed`) keeps the same relay behavior but changes embed layout to sender title + message body + receiver/metrics/path detail fields.
-- Webhook mode uses pre-send wait (`RELAY_PATH_WAIT_MS`) for hop/path completeness and does not do post-send edit updates.
-- If bot posting fails, logs can show `Missing Permissions` with the channel ID. Grant `View Channel`, `Send Messages`, and `Read Message History` to the bot.
-- In webhook mode, messages use per-sender robot avatars from RoboHash (`set1`) derived from sender name.
+This is something I do for fun, in my free time outside of work and family. If you find these tools useful and would like to support the time that goes into them, a little support on [Ko-fi](https://ko-fi.com/yellowcooln) is always appreciated. No pressure. Using the software, reporting bugs, and contributing ideas helps too.
