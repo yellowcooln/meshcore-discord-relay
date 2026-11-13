@@ -44,7 +44,7 @@ Edit `.env` and set the shared settings first (these apply to both modes):
 - `MQTT_HOST`
 - `MQTT_PORT`
 - `MQTT_USERNAME` / `MQTT_PASSWORD` (if required)
-- `MQTT_TOPIC` (for example `meshcore/BOS/#`)
+- `MQTT_TOPIC` (for example `meshcore/BOS/#`, or comma-separated `meshcore/BOS/#,meshcore/PVD/#` for multiple regions)
 - `MQTT_TRANSPORT` (`tcp` or `websockets`)
 - `MQTT_TLS` (`true` if your broker uses TLS)
 - `DISCORD_ROUTE_MODE` (`per_channel` or `master`)
@@ -278,7 +278,7 @@ docker compose down
 - `MQTT_PORT`: MQTT broker port.
 - `MQTT_USERNAME`: MQTT username (optional).
 - `MQTT_PASSWORD`: MQTT password (optional).
-- `MQTT_TOPIC`: MQTT topic subscription (for example `meshcore/#` or `meshcore/BOS/#`).
+- `MQTT_TOPIC`: MQTT topic subscription (for example `meshcore/#` or `meshcore/BOS/#`). Accepts a comma-separated list to subscribe to several filters, e.g. `meshcore/BOS/#,meshcore/PVD/#`; invalid filters are skipped with a warning and an empty value falls back to `meshcore/#`.
 - `MQTT_TLS`: Set `true` for TLS (`mqtts`/`wss`), else `false`.
 - `MQTT_TLS_INSECURE`: Set `true` to skip TLS cert verification (not recommended outside testing).
 - `MQTT_CA_CERT`: Optional CA certificate path for TLS validation.

@@ -3,7 +3,7 @@ import path from 'path';
 import * as yaml from 'js-yaml';
 import { ChannelCrypto } from '@michaelhart/meshcore-decoder/dist/crypto/channel-crypto.js';
 
-import { normalizeTopicWhitelist } from './topic-match.js';
+import { normalizeTopicFilters, normalizeTopicWhitelist } from './topic-match.js';
 import { normalizeScopeNames } from './scope-display.js';
 
 function env(name, fallback = '') {
@@ -367,7 +367,10 @@ export function loadConfig() {
 
   const mqttHost = env('MQTT_HOST', 'localhost');
   const mqttPort = envInt('MQTT_PORT', 1883);
-  const mqttTopic = env('MQTT_TOPIC', 'meshcore/#');
+  const mqttTopics = normalizeTopicFilters(envList('MQTT_TOPIC'), console.warn, 'MQTT_TOPIC');
+  if (mqttTopics.length === 0) {
+    mqttTopics.push('meshcore/#');
+  }
   const mqttTransport = env('MQTT_TRANSPORT', 'tcp').trim().toLowerCase();
   const mqttWsPath = env('MQTT_WS_PATH', '/mqtt');
   const mqttTls = envBool('MQTT_TLS', false);
@@ -377,7 +380,7 @@ export function loadConfig() {
   const mqtt = {
     host: mqttHost,
     port: mqttPort,
-    topic: mqttTopic,
+    topics: mqttTopics,
     transport: mqttTransport,
     wsPath: mqttWsPath,
     tls: mqttTls,

@@ -1227,8 +1227,8 @@ function buildMqttClient() {
   const client = mqtt.connect(url, options);
 
   client.on('connect', () => {
-    log('info', `MQTT connected (${url}), subscribing to ${config.mqtt.topic}`);
-    client.subscribe(config.mqtt.topic, { qos: config.mqtt.qos }, (err) => {
+    log('info', `MQTT connected (${url}), subscribing to ${config.mqtt.topics.join(', ')}`);
+    client.subscribe(config.mqtt.topics, { qos: config.mqtt.qos }, (err) => {
       if (err) {
         log('warn', `MQTT subscribe error: ${err?.message || err}`);
       }
