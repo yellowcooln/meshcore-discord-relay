@@ -18,6 +18,10 @@ export function isValidTopicFilter(pattern) {
 }
 
 export function normalizeTopicWhitelist(patterns = [], warn = () => {}) {
+  return normalizeTopicFilters(patterns, warn, 'MQTT_TOPIC_WHITELIST');
+}
+
+export function normalizeTopicFilters(patterns = [], warn = () => {}, settingName = 'topic') {
   const normalized = [];
   const seen = new Set();
 
@@ -27,7 +31,7 @@ export function normalizeTopicWhitelist(patterns = [], warn = () => {}) {
       continue;
     }
     if (!isValidTopicFilter(trimmed)) {
-      warn(`[config] Ignoring invalid MQTT_TOPIC_WHITELIST filter: ${trimmed}`);
+      warn(`[config] Ignoring invalid ${settingName} filter: ${trimmed}`);
       continue;
     }
     if (!seen.has(trimmed)) {

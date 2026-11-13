@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- `MQTT_TOPIC` now accepts a comma-separated list of topic filters (e.g. `meshcore/BOS/#,meshcore/PVD/#`), subscribing to each so the broker only sends the selected regions. Invalid filters are skipped with a warning; single-topic values behave as before.
+
 ## v1.4.9 - scope display and Discord dependency update
 
 - Added optional `RELAY_SHOW_SCOPE` display for scoped MeshCore transport messages. Simple bot/webhook output uses a blank line then compact metadata, e.g. `` `#northbridge` · [`97`] ``, without a `Scope:` prefix; either scope or path can appear alone. Detailed bot embeds retain a separate Scope field; delayed sends and path edits retain the scope.

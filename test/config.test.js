@@ -254,3 +254,21 @@ test('loadConfig supports JSON files and normalizes relay settings', (t) => {
     assert.equal(config.relay.pathEditMinIntervalMs, 0);
   });
 });
+
+test('MQTT_TOPIC accepts comma-separated topic filters', (t) => {
+  if (skipIfMissingDeps(t)) {
+    return;
+  }
+  withConfigEnv({}, () => {
+    assert.deepEqual(loadConfig().mqtt.topics, ['meshcore/#']);
+  });
+  withConfigEnv({ MQTT_TOPIC: 'meshcore/BOS/#' }, () => {
+    assert.deepEqual(loadConfig().mqtt.topics, ['meshcore/BOS/#']);
+  });
+  withConfigEnv({ MQTT_TOPIC: ' meshcore/BOS/#, meshcore/PVD/#,,meshcore/#/bad, meshcore/BOS/# ' }, () => {
+    assert.deepEqual(loadConfig().mqtt.topics, ['meshcore/BOS/#', 'meshcore/PVD/#']);
+  });
+  withConfigEnv({ MQTT_TOPIC: 'meshcore/#/bad' }, () => {
+    assert.deepEqual(loadConfig().mqtt.topics, ['meshcore/#']);
+  });
+});

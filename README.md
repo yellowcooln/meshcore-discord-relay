@@ -103,7 +103,7 @@ See [`.env.example`](./.env.example) for all settings and the [deployment guide]
 | --- | --- |
 | `MQTT_HOST`, `MQTT_PORT`, `MQTT_TRANSPORT` | Broker address and TCP/WebSocket transport. |
 | `MQTT_USERNAME`, `MQTT_PASSWORD` | Subscriber credentials, when required. |
-| `MQTT_TOPIC` | Broker topic subscription. |
+| `MQTT_TOPIC` | Broker topic subscription; comma-separate multiple filters (e.g. `meshcore/PRB/#,meshcore/SBP/#`). |
 | `MQTT_TLS`, `MQTT_CA_CERT`, `MQTT_WS_PATH` | TLS and WebSocket connection settings. |
 | `DISCORD_DELIVERY_MODE`, `DISCORD_TOKEN` | Bot/webhook selection and bot authentication. |
 | `DISCORD_ROUTE_MODE` | `per_channel` mappings or a single `master` destination. |
